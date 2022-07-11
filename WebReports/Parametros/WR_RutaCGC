@@ -1,0 +1,57 @@
+[LL_WEBREPORT_IF "[LL_REPTAG_&conHTML /]" == "0" /]
+    [LL_WEBREPORT_EXCLUDEHTML /]
+[LL_WEBREPORT_ENDIF /]
+
+[LL_WEBREPORT_TITLE TITLE1:"Parámetros:" TITLE2:" Ubicacion fisica" /]
+
+<link rel="stylesheet" href="/img/appearances/Ecopetrol/libs/css/jquery.dataTables.min.css">
+<link rel="stylesheet" href="/img/appearances/Ecopetrol/libs/css/responsive.dataTables.min.css">
+<link rel="stylesheet" href="/img/appearances/Ecopetrol/libs/reports/Reportes.css">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Exo+2:100,100i,400,400i,700,700i&amp;display=swap">
+<div align="right">
+    <a class="btn btn-success" href="?func=ll&objId=[LL_REPTAG_$SWR_RutaCGC /]&objAction=RunReport&nexturl=[LL_REPTAG_MYURL ESCAPEURL /]"><span class="glyphicon glyphicon-plus"></span> Exportar</a>
+    [//Boton para crear un nueva empresa INICIO/]
+    <a class=" btn btn-success" href="?func=ll&objId=[LL_REPTAG_$WF_RutaCGC /]&objAction=EditForm&nexturl=[LL_REPTAG_MYURL ESCAPEURL /]"><span class="glyphicon glyphicon-plus"></span> Nueva</a>
+    [//Boton para crear un nueva empresa FIN/]
+</div>
+
+<table id="myTable" class="table display" style="width:100%">
+    <thead>
+        <tr>
+            <th>Acciones</th>
+            <th>CGC</th>
+            <th>Ruta</th>
+            <th>Edificio</th>
+            <th>Piso/Área</th>
+            <th>Activo</th>
+        </tr>
+    </thead>
+    <tbody>
+[LL_WEBREPORT_STARTROW /]
+        <tr>
+            <td>
+                <a href="/OTCS/llisapi.dll?func=ll&objId=[LL_REPTAG='DataID' /]&objAction=EditForm&LL_seq=[LL_REPTAG='Seq' /]&nexturl=[LL_REPTAG_MYURL ESCAPEURL /]">
+                    <span class="glyphicon glyphicon-pencil"></span> Editar
+                </a>
+            </td>
+            <td>[LL_REPTAG='CGC' /]</td>
+            <td>[LL_REPTAG='Ruta' /]</td>
+            <td>[LL_REPTAG='Edificio' /]</td>
+            <td>[LL_REPTAG='AreaPiso' /]</td>
+            [LL_WEBREPORT_IF "[LL_REPTAG='Activo' /]" == "1" /]
+                <td>Si</td>
+            [LL_WEBREPORT_ELSE /]
+                <td>No</td>
+            [LL_WEBREPORT_ENDIF /]
+        </tr>
+[LL_WEBREPORT_ENDROW /]
+    </tbody>
+    <tfoot>
+    </tfoot>
+</table>
+<script src="/img/core/jquery.min.js"></script>
+<script src="/img/appearances/Ecopetrol/libs/js/jquery.dataTables.min.js"></script>
+<script src="/img/appearances/Ecopetrol/libs/js/bootstrap.min.js"></script>
+<script src="/img/appearances/Ecopetrol/libs/js/dataTables.responsive.min.js"></script>
+<script src="/img/appearances/Ecopetrol/libs/reports/Reportes.js"></script>
+
