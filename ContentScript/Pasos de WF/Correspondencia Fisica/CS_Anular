@@ -1,0 +1,136 @@
+/*
+████████╗███████╗ ██████╗██╗  ██╗███████╗██████╗  ██████╗ ███████╗    ████████╗███████╗ █████╗ ███╗   ███╗
+╚══██╔══╝██╔════╝██╔════╝██║  ██║██╔════╝██╔══██╗██╔════╝ ██╔════╝    ╚══██╔══╝██╔════╝██╔══██╗████╗ ████║
+   ██║   █████╗  ██║     ███████║█████╗  ██║  ██║██║  ███╗█████╗         ██║   █████╗  ███████║██╔████╔██║
+   ██║   ██╔══╝  ██║     ██╔══██║██╔══╝  ██║  ██║██║   ██║██╔══╝         ██║   ██╔══╝  ██╔══██║██║╚██╔╝██║
+   ██║   ███████╗╚██████╗██║  ██║███████╗██████╔╝╚██████╔╝███████╗       ██║   ███████╗██║  ██║██║ ╚═╝ ██║
+   ╚═╝   ╚══════╝ ╚═════╝╚═╝  ╚═╝╚══════╝╚═════╝  ╚═════╝ ╚══════╝       ╚═╝   ╚══════╝╚═╝  ╚═╝╚═╝     ╚═╝
+                                            ╦╔╗╔╔═╗╔═╗╦╦═╗╦╔╗╔╔═╗  ╔╦╗╦═╗╦ ╦╔═╗╔╦╗  ╔═╗╦  ╔═╗╔╗ ╔═╗╦  ╦ ╦ ╦
+                                            ║║║║╚═╗╠═╝║╠╦╝║║║║║ ╦   ║ ╠╦╝║ ║╚═╗ ║   ║ ╦║  ║ ║╠╩╗╠═╣║  ║ ╚╦╝
+                                            ╩╝╚╝╚═╝╩  ╩╩╚═╩╝╚╝╚═╝   ╩ ╩╚═╚═╝╚═╝ ╩   ╚═╝╩═╝╚═╝╚═╝╩ ╩╩═╝╩═╝╩ 
+*/
+/***** CS Anular comunicacion distribucion eletronica - DGC 02/10/2020 BEGIN *****/
+
+//Definicion de constantes
+APC = docman.getScriptByNickname("am_correspondencia_config").getCSVars()?.app
+wfstatus = workflow.getWorkflowStatus(workID, subWorkID)
+wfattachments = wfstatus.attachments
+wfattr = wfstatus.attributes
+form = forms.getWorkFlowFormDirect(wfstatus, "Form")
+folderrad = asCSNode(form.idcarpeta.value as long)
+performerID = getPerformerID()
+
+/***************************Main Code BEGIN***************************/
+
+try{
+    //Movimiento de documentos
+    moveDocs()
+    
+    //Actualizar esta a anulado
+    updateState()
+    
+    //Actualizar metadata
+    updateMetadata()
+    
+}catch(e){ 
+    log.error("Error en la ejecucion de la anulacion", e)
+}
+
+/****************************Main Code END****************************/
+
+/***************************Funciones BEGIN***************************/
+
+//Funcion para mover los documentos
+def moveDocs(){
+    
+    //Obtener la carpeta de anulacion
+    def folderAnulacion = getFolderAnulacion()
+    
+    //Consulta de hijos
+    wfattachments.getChildren().each{it->
+        
+        //Si el hijo es un shorcut, no se mueve, el resto si se mueve
+        it.subtype == 1 ? null : docman.moveNode(it, folderAnulacion, "${it.name}", false, true, null)
+    }
+    
+}
+
+//Funcion para actualizar el estado en la tabla z
+def updateState(){
+    
+    //Procedimiento almacenado
+    def sp =    """EXEC Z_SP_COR_ActualizarEstado @Seq = '${wfattr.data.Seq}',
+                                                  @Radicado = '${form.radicado.value}',
+                                                  @Estado = 'Anulado', @Destinatario = '0',
+                                                  @Cargo = '', @Dependencia = '', @CECO = '', @Registro = '',
+                                                  @Delegado = '0', @DelDependencia = '',
+                                                  @Usuario = '${performerID}',
+                                                  @CGC = ''
+                """
+    
+    //Ejecucion del procedimiento
+    sql.runSQL(sp, false, false, 0)
+    
+}
+
+//Actualizar metadatos en la taxonomia
+def updateMetadata(){
+    
+    //Actualizar metadatos
+    folderrad."Radicación"."Estado" = "Anulado"
+    folderrad."Radicación"."Usuario Modificacion" = performerID
+    folderrad."Radicación"."Fecha Modificacion" = new Date()
+    
+    //Actualizar 
+    folderrad.update()
+    
+    //Aplicar el cambio de metadatos a los hijos
+    def listFiles = []
+    
+    getChildsByID(folderrad.ID, listFiles)
+    
+    listFiles.each(){it->
+        it."Radicación"."Estado" = "Anulado"
+        it."Radicación"."Usuario Modificacion" = performerID
+        it."Radicación"."Fecha Modificacion" = new Date() 
+        
+        it.update()
+    }
+}
+
+/****************************Funciones END****************************/
+
+/*****************************Utils BEGIN*****************************/
+
+//Funcion para obtener la carpeta de anulacion
+def getFolderAnulacion(){
+    
+    //Obtener el folder
+    def folder = docman.getNodeByName(folderrad, "Soporte Anulacion")
+    
+    //Si no existe se crea
+    return folder ?: docman.createFolder(folderrad, "Soporte Anulacion")
+}
+
+//Funcion para determinar el performer ID del paso de reasignacion
+def getPerformerID(){
+
+    //Obtener la tarea por el nombre
+    wfTask = wfstatus.tasks.find{ it.title == 'Reasignar destinatario' }
+    
+    //Retornar el ultimo performer de la tarea
+    return wfTask.memberID
+}
+
+//Funcion para obtener los hijos de un contenedor
+def getChildsByID(folderID, listFiles) {
+    
+    docman.getNode(folderID as long).getChildren().each {
+        it.subtype == 144 ? listFiles.add(it) : listFiles.add(it); getChildsByID(it.ID, listFiles);
+    }
+}
+
+/******************************Utils END******************************/
+
+/***** CS Anular comunicacion distribucion eletronica - DGC 02/10/2020 END *****/
+
