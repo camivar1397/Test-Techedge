@@ -1,0 +1,49 @@
+/*
+████████╗███████╗ ██████╗██╗  ██╗███████╗██████╗  ██████╗ ███████╗    ████████╗███████╗ █████╗ ███╗   ███╗
+╚══██╔══╝██╔════╝██╔════╝██║  ██║██╔════╝██╔══██╗██╔════╝ ██╔════╝    ╚══██╔══╝██╔════╝██╔══██╗████╗ ████║
+   ██║   █████╗  ██║     ███████║█████╗  ██║  ██║██║  ███╗█████╗         ██║   █████╗  ███████║██╔████╔██║
+   ██║   ██╔══╝  ██║     ██╔══██║██╔══╝  ██║  ██║██║   ██║██╔══╝         ██║   ██╔══╝  ██╔══██║██║╚██╔╝██║
+   ██║   ███████╗╚██████╗██║  ██║███████╗██████╔╝╚██████╔╝███████╗       ██║   ███████╗██║  ██║██║ ╚═╝ ██║
+   ╚═╝   ╚══════╝ ╚═════╝╚═╝  ╚═╝╚══════╝╚═════╝  ╚═════╝ ╚══════╝       ╚═╝   ╚══════╝╚═╝  ╚═╝╚═╝     ╚═╝
+                                            ╦╔╗╔╔═╗╔═╗╦╦═╗╦╔╗╔╔═╗  ╔╦╗╦═╗╦ ╦╔═╗╔╦╗  ╔═╗╦  ╔═╗╔╗ ╔═╗╦  ╦ ╦ ╦
+                                            ║║║║╚═╗╠═╝║╠╦╝║║║║║ ╦   ║ ╠╦╝║ ║╚═╗ ║   ║ ╦║  ║ ║╠╩╗╠═╣║  ║ ╚╦╝
+                                            ╩╝╚╝╚═╝╩  ╩╩╚═╩╝╚╝╚═╝   ╩ ╩╚═╚═╝╚═╝ ╩   ╚═╝╩═╝╚═╝╚═╝╩ ╩╩═╝╩═╝╩ 
+*/
+//Retorna la o las dependencias a la que pertenece un usuario JHMM 30/01/2019
+
+//variables que reciben los parámetros desde el formulario
+def usuario = args[0]
+//variable para retornar los resultados de la actualización del atributo
+def retVal = [:]
+
+try{
+    buscarDependencia(usuario, retVal)
+}
+catch(e){
+    retVal.msgdesc = "Error: " + e
+	retVal.msgcode = "false"
+}
+
+//se retornan los resultados
+return retVal
+
+def buscarDependencia(String usuarioCGC, retVal) {
+    def result = []
+    if(usuarioCGC){
+        def sqlCode = """SELECT CodigoCGC, Nombre 
+                         FROM Z_COR_CGC ZCGC
+                         INNER JOIN KUAFChildren AS KF ON KF.ID = ZCGC.GrupoCGC
+                         WHERE KF.ChildID = '${usuarioCGC}' AND KF.ID != 1001
+						 ORDER BY Orden
+                      """
+        Boolean cursorEnabled = false 
+        Boolean transactionEnabled = false
+        Integer recordLimit = 1
+        
+        result = sql.runSQLFast(sqlCode,  cursorEnabled,  transactionEnabled,  recordLimit).rows
+    }
+    
+    retVal.msgdesc = "CodigoCGC Obtenido"
+    retVal.msgcode = "true"
+    retVal.result = result
+}
