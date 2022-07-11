@@ -1,0 +1,133 @@
+/*
+████████╗███████╗ ██████╗██╗  ██╗███████╗██████╗  ██████╗ ███████╗    ████████╗███████╗ █████╗ ███╗   ███╗
+╚══██╔══╝██╔════╝██╔════╝██║  ██║██╔════╝██╔══██╗██╔════╝ ██╔════╝    ╚══██╔══╝██╔════╝██╔══██╗████╗ ████║
+   ██║   █████╗  ██║     ███████║█████╗  ██║  ██║██║  ███╗█████╗         ██║   █████╗  ███████║██╔████╔██║
+   ██║   ██╔══╝  ██║     ██╔══██║██╔══╝  ██║  ██║██║   ██║██╔══╝         ██║   ██╔══╝  ██╔══██║██║╚██╔╝██║
+   ██║   ███████╗╚██████╗██║  ██║███████╗██████╔╝╚██████╔╝███████╗       ██║   ███████╗██║  ██║██║ ╚═╝ ██║
+   ╚═╝   ╚══════╝ ╚═════╝╚═╝  ╚═╝╚══════╝╚═════╝  ╚═════╝ ╚══════╝       ╚═╝   ╚══════╝╚═╝  ╚═╝╚═╝     ╚═╝
+                                            ╦╔╗╔╔═╗╔═╗╦╦═╗╦╔╗╔╔═╗  ╔╦╗╦═╗╦ ╦╔═╗╔╦╗  ╔═╗╦  ╔═╗╔╗ ╔═╗╦  ╦ ╦ ╦
+                                            ║║║║╚═╗╠═╝║╠╦╝║║║║║ ╦   ║ ╠╦╝║ ║╚═╗ ║   ║ ╦║  ║ ║╠╩╗╠═╣║  ║ ╚╦╝
+                                            ╩╝╚╝╚═╝╩  ╩╩╚═╩╝╚╝╚═╝   ╩ ╩╚═╚═╝╚═╝ ╩   ╚═╝╩═╝╚═╝╚═╝╩ ╩╩═╝╩═╝╩ 
+*/
+/***** CS para enviar notificación a los copiados externos de la radicación electrónica - LPA 08/04/2020 BEGIN *****/
+
+//**** Declaracion de constantes
+APC = docman.getScriptByNickname("am_correspondencia_config").getCSVars()?.app
+WFSTATUS = workflow.getWorkflowStatus(workID, subWorkID)
+WFATTACHMENT = WFSTATUS.getAttachmentsFolder()
+WFATTRIBUTES = WFSTATUS.attributes
+WFATTRCCEXT = WFATTRIBUTES.data.CopiaExt
+WFATTRDEPEXT = WFATTRIBUTES.data.DependenciaCCExt
+FORM = forms.getWorkFlowFormDirect(WFSTATUS, "Form")
+
+//**** Declaracion de variables
+class EmailProperties{
+    String email
+    String asunto
+    }
+def newCorreo = new EmailProperties()
+def RadicElect = docman.getNodeByName(WFATTACHMENT, "${FORM.radicado.value}.pdf")
+
+//Cuerpo del correo
+newCorreo.email= "<tr>"
+newCorreo.email+="<td align='justify'>${FORM.asunto.value}</td>"
+newCorreo.email+="<td align='center'>${FORM.radicado.value}</td>"
+newCorreo.email+="<td align='center'>${FORM.fecharadicado.valueAsDate.format('dd/MM/yyyy hh:mm:ss a')}</td>"
+def tipoCom = runCS("${APC.subScripts.siglatovalue}", "Parametros", "${FORM.tipocomunicacion.value}", null, null, "TIPC" ).result
+newCorreo.email+="<td align='center'>${tipoCom ? tipoCom : ""}</td>"
+newCorreo.email+="<td align='center'>${FORM.deusuario.value}</td>"
+newCorreo.email+="<td align='center'>${FORM.nanexos.value}</td>"
+newCorreo.email+="</tr>"
+newCorreo.email+="<br>"
+
+//Asunto y Cuerpo del correo
+emailTemplate = docman.getNode(APC.constants.correoSedeElectronica)
+newCorreo.asunto = "Copia radicación externa No. ${FORM.radicado.value}"
+
+/******************************************Main Code BEGIN******************************************/
+try{
+
+    //Enviar el correo de notificación
+    enviarCorreo(newCorreo, emailTemplate, RadicElect)
+    
+    //Actualizar atributos de WF
+    actualizarCCExt()
+    
+}catch(e){
+    log.error("Error en el envio de la notificacion", e)
+}
+/******************************************Main Code END******************************************/
+
+/*****************************************Functions BEGIN*****************************************/
+
+//Envio de correo
+def enviarCorreo(cuerpoCorreo, templateEmail, radicElect){
+    //Evaluar template
+    def emailContext = ['asunto':"<h1>${cuerpoCorreo.asunto}</h1>", 'body': cuerpoCorreo.email]
+    def mailbody = template.evaluateTemplate(templateEmail, emailContext)
+    correo = mail.create(mailbody)
+
+    //lista de Copiados en el Formulario
+    for(int i=0; i<FORM.cc.size(); i++){
+        if(!FORM.cc[i].value.isEmpty()){
+            correo.to(FORM.cc[i].value)
+        }
+    }
+
+    //Adjuntos en el correo
+    correo.attach(radicElect, "${radicElect.name}")
+
+    //Enviar Correo
+    correo.from("correspondenciatechedgecol@gmail.com")
+    correo.subject(cuerpoCorreo.asunto)
+    mail.send(correo, "correspondencia")
+}
+
+//Actualizar atributos de WF
+def actualizarCCExt(){
+    
+    //lista de Copiados en el Formulario
+    for(int i=0; i<FORM.cc.size(); i++){
+        if(!FORM.cc[i].value.isEmpty()){
+            WFATTRCCEXT[i] = FORM.cc[i].value
+            
+            //Buscar dependencia
+            def depend = getDependence(FORM.cc[i].value)
+            
+            if(depend){
+                if(depend.size() > 0){
+                    WFATTRDEPEXT[i] = depend[0].Sigla
+                }else{
+                    WFATTRDEPEXT[i] = null
+                }
+            }else{
+                WFATTRDEPEXT[i] = null
+            }
+            
+            //Actualizar WF 
+            WFSTATUS.updateData()
+        }
+    }
+}
+/*****************************************Functions END*****************************************/
+
+/*****************************************Utils BEGIN*****************************************/
+def getDependence(email){
+    def depend
+    def userbyMail = users.searchUsersByEmail(email).listAll()
+    
+    for(int i=0; i<userbyMail.size(); i++){
+        depend = runCS("${APC.subScripts.userDepend}", "${userbyMail[i].ID}").result
+        break
+    } 
+    
+    return depend
+}
+/*****************************************Utils END*****************************************/
+
+/***** CS para enviar notificación a los copiados externos de la radicación electrónica - LPA 08/04/2020 END *****/
+
+
+
+
+
