@@ -1,0 +1,49 @@
+/*
+████████╗███████╗ ██████╗██╗  ██╗███████╗██████╗  ██████╗ ███████╗    ████████╗███████╗ █████╗ ███╗   ███╗
+╚══██╔══╝██╔════╝██╔════╝██║  ██║██╔════╝██╔══██╗██╔════╝ ██╔════╝    ╚══██╔══╝██╔════╝██╔══██╗████╗ ████║
+   ██║   █████╗  ██║     ███████║█████╗  ██║  ██║██║  ███╗█████╗         ██║   █████╗  ███████║██╔████╔██║
+   ██║   ██╔══╝  ██║     ██╔══██║██╔══╝  ██║  ██║██║   ██║██╔══╝         ██║   ██╔══╝  ██╔══██║██║╚██╔╝██║
+   ██║   ███████╗╚██████╗██║  ██║███████╗██████╔╝╚██████╔╝███████╗       ██║   ███████╗██║  ██║██║ ╚═╝ ██║
+   ╚═╝   ╚══════╝ ╚═════╝╚═╝  ╚═╝╚══════╝╚═════╝  ╚═════╝ ╚══════╝       ╚═╝   ╚══════╝╚═╝  ╚═╝╚═╝     ╚═╝
+                                            ╦╔╗╔╔═╗╔═╗╦╦═╗╦╔╗╔╔═╗  ╔╦╗╦═╗╦ ╦╔═╗╔╦╗  ╔═╗╦  ╔═╗╔╗ ╔═╗╦  ╦ ╦ ╦
+                                            ║║║║╚═╗╠═╝║╠╦╝║║║║║ ╦   ║ ╠╦╝║ ║╚═╗ ║   ║ ╦║  ║ ║╠╩╗╠═╣║  ║ ╚╦╝
+                                            ╩╝╚╝╚═╝╩  ╩╩╚═╩╝╚╝╚═╝   ╩ ╩╚═╚═╝╚═╝ ╩   ╚═╝╩═╝╚═╝╚═╝╩ ╩╩═╝╩═╝╩ 
+*/
+//Retorna la o las dependencias a la que pertenece un usuario JHMM 30/01/2019
+
+//variables que reciben los parámetros desde el formulario
+def usuario = args[0]
+//variable para retornar los resultados de la actualización del atributo
+def retVal = [:]
+
+try{
+    buscarDependencia(usuario, retVal)
+}
+catch(e){
+    retVal.msgdesc = "Error: " + e
+	retVal.msgcode = "false"
+}
+
+//se retornan los resultados
+return retVal
+
+def buscarDependencia(String usuariodep, retVal) {
+    def result = []
+    if(usuariodep){
+        def sqlCode = """SELECT Sigla, Nombre, Grupo, CECO 
+                         FROM Z_COR_Dependencias ZDPN
+                         INNER JOIN KUAFChildren AS KF ON KF.ID = ZDPN.Grupo
+                         WHERE KF.ChildID = '${usuariodep}' AND KF.ID != 1001
+						 ORDER BY Nombre
+                      """
+        Boolean cursorEnabled = false 
+        Boolean transactionEnabled = false
+        Integer recordLimit = 1
+        
+        result = sql.runSQLFast(sqlCode,  cursorEnabled,  transactionEnabled,  recordLimit).rows
+    }
+    
+    retVal.msgdesc = "Sigla Obtenida"
+    retVal.msgcode = "true"
+    retVal.result = result
+}
