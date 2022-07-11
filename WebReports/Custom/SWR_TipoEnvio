@@ -1,0 +1,11 @@
+[LL_WEBREPORT_EXCLUDEHTML /]
+<select class="form-control select2" name="tipoenvio" id="tipoenvio" multiple="multiple">
+    <option value="">-</option>
+    <option value="Courier">Courier</option>
+    <option value="[LL_REPTAG_'Distribuci&oacute;n interna' ESCAPEFORJS:ENCODEURI /]">Distribución interna</option>
+    <option value="[LL_REPTAG_'Distribuci&oacute;n electr&oacute;nica' ESCAPEFORJS:ENCODEURI /]">Distribución electrónica</option>
+    <option value="Se hace responsable de la entrega">Se hace responsable de la entrega</option>
+    <option value="[LL_REPTAG_'F&iacute;sica en contingencia' ESCAPEFORJS:ENCODEURI /]">Física en contingencia</option>
+</select>
+[LL_WEBREPORT_STARTROW /]
+[LL_WEBREPORT_ENDROW /]
