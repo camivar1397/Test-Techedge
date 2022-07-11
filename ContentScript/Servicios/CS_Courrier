@@ -1,0 +1,73 @@
+/*
+████████╗███████╗ ██████╗██╗  ██╗███████╗██████╗  ██████╗ ███████╗    ████████╗███████╗ █████╗ ███╗   ███╗
+╚══██╔══╝██╔════╝██╔════╝██║  ██║██╔════╝██╔══██╗██╔════╝ ██╔════╝    ╚══██╔══╝██╔════╝██╔══██╗████╗ ████║
+   ██║   █████╗  ██║     ███████║█████╗  ██║  ██║██║  ███╗█████╗         ██║   █████╗  ███████║██╔████╔██║
+   ██║   ██╔══╝  ██║     ██╔══██║██╔══╝  ██║  ██║██║   ██║██╔══╝         ██║   ██╔══╝  ██╔══██║██║╚██╔╝██║
+   ██║   ███████╗╚██████╗██║  ██║███████╗██████╔╝╚██████╔╝███████╗       ██║   ███████╗██║  ██║██║ ╚═╝ ██║
+   ╚═╝   ╚══════╝ ╚═════╝╚═╝  ╚═╝╚══════╝╚═════╝  ╚═════╝ ╚══════╝       ╚═╝   ╚══════╝╚═╝  ╚═╝╚═╝     ╚═╝
+                                            ╦╔╗╔╔═╗╔═╗╦╦═╗╦╔╗╔╔═╗  ╔╦╗╦═╗╦ ╦╔═╗╔╦╗  ╔═╗╦  ╔═╗╔╗ ╔═╗╦  ╦ ╦ ╦
+                                            ║║║║╚═╗╠═╝║╠╦╝║║║║║ ╦   ║ ╠╦╝║ ║╚═╗ ║   ║ ╦║  ║ ║╠╩╗╠═╣║  ║ ╚╦╝
+                                            ╩╝╚╝╚═╝╩  ╩╩╚═╩╝╚╝╚═╝   ╩ ╩╚═╚═╝╚═╝ ╩   ╚═╝╩═╝╚═╝╚═╝╩ ╩╩═╝╩═╝╩ 
+*/
+//Retorna la lista de Courrier JHMM 25/06/2020
+
+def getByID(String id) {   
+    def sqlCode = """SELECT Sigla, DescripcionLarga
+                     FROM Z_COR_Parametros
+                     WHERE Tipo = 'COU' 
+                     AND Sigla = '${id}'
+                  """
+    Boolean cursorEnabled = false 
+    Boolean transactionEnabled = false
+    Integer recordLimit = 1
+    def result = sql.runSQLFast(sqlCode,  cursorEnabled,  transactionEnabled,  recordLimit).rows.collect{
+          [ id:it.Sigla, text:it.DescripcionLarga]
+    }
+    
+    if(result){    
+        return result[0]
+    }
+    else{
+        return []
+    }
+}
+
+def getAll(String searchTerm) {
+    def result = []
+    String cond1 = ""
+    if(searchTerm){
+        cond1 = "AND (UPPER(DescripcionLarga) LIKE UPPER('%${searchTerm}%') OR UPPER(Sigla) LIKE UPPER('%${searchTerm}%'))" 
+    }
+    
+    def sqlCode = """SELECT Sigla, DescripcionLarga
+                     FROM Z_COR_Parametros
+                     WHERE Tipo = 'COU'
+                     AND Activo = 1
+                     ${cond1}
+                     ORDER BY Orden
+                  """
+    Boolean cursorEnabled = false 
+    Boolean transactionEnabled = false
+    Integer recordLimit = 1
+        
+    result = sql.runSQLFast(sqlCode,  cursorEnabled,  transactionEnabled,  recordLimit).rows.collect{
+        [ id:it.Sigla, text:it.DescripcionLarga]}
+    
+    return result
+}
+
+/*
+	Main code
+*/
+try{
+        
+    if(params.id){
+    	result = getByID(params.id)
+    } else {
+        result = getAll(params.term)
+    }
+    json(result)
+
+} catch(e) {
+	log.error("Error CS:${self.ID} -> obteniendo la lista de Courriers: ", e)
+}
