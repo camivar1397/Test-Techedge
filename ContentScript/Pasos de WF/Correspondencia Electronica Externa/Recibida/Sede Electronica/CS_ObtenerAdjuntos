@@ -1,0 +1,53 @@
+/*
+████████╗███████╗ ██████╗██╗  ██╗███████╗██████╗  ██████╗ ███████╗    ████████╗███████╗ █████╗ ███╗   ███╗
+╚══██╔══╝██╔════╝██╔════╝██║  ██║██╔════╝██╔══██╗██╔════╝ ██╔════╝    ╚══██╔══╝██╔════╝██╔══██╗████╗ ████║
+   ██║   █████╗  ██║     ███████║█████╗  ██║  ██║██║  ███╗█████╗         ██║   █████╗  ███████║██╔████╔██║
+   ██║   ██╔══╝  ██║     ██╔══██║██╔══╝  ██║  ██║██║   ██║██╔══╝         ██║   ██╔══╝  ██╔══██║██║╚██╔╝██║
+   ██║   ███████╗╚██████╗██║  ██║███████╗██████╔╝╚██████╔╝███████╗       ██║   ███████╗██║  ██║██║ ╚═╝ ██║
+   ╚═╝   ╚══════╝ ╚═════╝╚═╝  ╚═╝╚══════╝╚═════╝  ╚═════╝ ╚══════╝       ╚═╝   ╚══════╝╚═╝  ╚═╝╚═╝     ╚═╝
+                                            ╦╔╗╔╔═╗╔═╗╦╦═╗╦╔╗╔╔═╗  ╔╦╗╦═╗╦ ╦╔═╗╔╦╗  ╔═╗╦  ╔═╗╔╗ ╔═╗╦  ╦ ╦ ╦
+                                            ║║║║╚═╗╠═╝║╠╦╝║║║║║ ╦   ║ ╠╦╝║ ║╚═╗ ║   ║ ╦║  ║ ║╠╩╗╠═╣║  ║ ╚╦╝
+                                            ╩╝╚╝╚═╝╩  ╩╩╚═╩╝╚╝╚═╝   ╩ ╩╚═╚═╝╚═╝ ╩   ╚═╝╩═╝╚═╝╚═╝╩ ╩╩═╝╩═╝╩ 
+*/
+/***** CS paso de WF para mover los adjuntos de la ubicacion temporal al WF - DGC 23/04/2020 BEGIN *****/
+
+//**** Declaracion de constantes
+APC = docman.getScriptByNickname("am_correspondencia_config").getCSVars()?.app
+WFSTATUS = workflow.getWorkflowStatus(workID, subWorkID)
+WFATTACHMENT = WFSTATUS.getAttachmentsFolder()
+WFANEXOS = docman.getNodeByName(WFATTACHMENT, "Anexos")
+FORM = forms.getWorkFlowFormDirect(WFSTATUS, "Form")
+
+//**** Declaracion de variables
+
+/******************************************Main Code BEGIN******************************************/
+try{
+
+    //Evaluar si en el formulario el campo de anexos de SharePoint se encuentra vacio
+    obtenerAdjuntos()
+    
+}catch(e){
+    log.error("Error en el paso de WF descarga anexos SharePoint", e)
+}
+/******************************************Main Code END******************************************/
+
+/*****************************************Functions BEGIN*****************************************/
+
+def obtenerAdjuntos(){
+    
+    def tmpFolder
+    //Mover los anexos a los adjuntos de WF
+    for(int i=0; i<FORM.idanexo.size(); i++){
+        if(!FORM.idanexo[i].value.isEmpty()){   
+            tmpFolder = docman.getNode(FORM.idanexo[i].value as long).parent
+            docman.moveNode(asCSNode(FORM.idanexo[i].value as long), WFANEXOS, null, true, true, null)
+        }
+    }
+    
+    if(tmpFolder){
+        docman.deleteNode(tmpFolder)
+    }
+}
+/*****************************************Functions END*****************************************/
+
+/***** CS paso de WF para mover los adjuntos de la ubicacion temporal al WF - DGC 23/04/2020 END *****/
