@@ -1,0 +1,387 @@
+/*
+████████╗███████╗ ██████╗██╗  ██╗███████╗██████╗  ██████╗ ███████╗    ████████╗███████╗ █████╗ ███╗   ███╗
+╚══██╔══╝██╔════╝██╔════╝██║  ██║██╔════╝██╔══██╗██╔════╝ ██╔════╝    ╚══██╔══╝██╔════╝██╔══██╗████╗ ████║
+   ██║   █████╗  ██║     ███████║█████╗  ██║  ██║██║  ███╗█████╗         ██║   █████╗  ███████║██╔████╔██║
+   ██║   ██╔══╝  ██║     ██╔══██║██╔══╝  ██║  ██║██║   ██║██╔══╝         ██║   ██╔══╝  ██╔══██║██║╚██╔╝██║
+   ██║   ███████╗╚██████╗██║  ██║███████╗██████╔╝╚██████╔╝███████╗       ██║   ███████╗██║  ██║██║ ╚═╝ ██║
+   ╚═╝   ╚══════╝ ╚═════╝╚═╝  ╚═╝╚══════╝╚═════╝  ╚═════╝ ╚══════╝       ╚═╝   ╚══════╝╚═╝  ╚═╝╚═╝     ╚═╝
+                                            ╦╔╗╔╔═╗╔═╗╦╦═╗╦╔╗╔╔═╗  ╔╦╗╦═╗╦ ╦╔═╗╔╦╗  ╔═╗╦  ╔═╗╔╗ ╔═╗╦  ╦ ╦ ╦
+                                            ║║║║╚═╗╠═╝║╠╦╝║║║║║ ╦   ║ ╠╦╝║ ║╚═╗ ║   ║ ╦║  ║ ║╠╩╗╠═╣║  ║ ╚╦╝
+                                            ╩╝╚╝╚═╝╩  ╩╩╚═╩╝╚╝╚═╝   ╩ ╩╚═╚═╝╚═╝ ╩   ╚═╝╩═╝╚═╝╚═╝╩ ╩╩═╝╩═╝╩ 
+*/
+
+/***** CS que mueve los archivos de WF de correspondencia a la taxonomia - DGC 27/04/2020 BEGIN *****/
+import java.text.SimpleDateFormat
+
+//*** Constantes
+APC = docman.getScriptByNickname("am_correspondencia_config").getCSVars()?.app
+WFSTATUS = workflow.getWorkflowStatus(workID, subWorkID)
+WFATTACHMENT = WFSTATUS.getAttachmentsFolder()
+WFATTRIBUTES = WFSTATUS.attributes
+WFATTRCCEXT = WFATTRIBUTES.data.CopiaExt
+WFATTRCCINT = WFATTRIBUTES.data.CopiaInt
+WFATTRDEP = WFATTRIBUTES.data.Dependencia
+WFATTRDEST = WFATTRIBUTES.data.Destinatario
+FORM = forms.getWorkFlowFormDirect(WFSTATUS, "Form")
+CATRAD = docman.getCategory(docman.getCategoryWS(), "01 Demo Zone:dgitalCourier:Gestión de Correspondencia:Radicación")
+CATCER = docman.getCategory(docman.getCategoryWS(), "01 Demo Zone:dgitalCourier:Gestión de Correspondencia:Correspondencia Recibida")
+FECHAACTUAL = new Date()
+FECHARADICADO = FORM.fecharadicado.valueAsDate
+PERMISSIONS = ["SEE","SEECONTENTS"]
+
+//*** Variables
+def businessworkspace
+def foldermes
+def folderdependencia
+def folderradicado
+def dependencia
+
+/***************************************Main Code BEGIN***************************************/
+try{
+    //Obtener dependencia
+    dependencia = getDependence()
+    
+    //Obtener Zona de negocio
+    businessworkspace = getBW()
+    
+    //Obtener el Folder del mes
+    foldermes = getFolderMonth(businessworkspace)
+    
+    //Crear folder dependencia
+    folderdependencia = setFolderDependence(foldermes,dependencia)
+    
+    //Agregar permisos folder dependencia
+    def permissionsdep = addPermissionsDependence(folderdependencia)
+    
+    //Crear folder radicado
+    folderradicado = setFolderRadicado(folderdependencia)
+    
+    //Agregar permisos folder radicado
+    def permissionsrad = addPermissionsRad(folderradicado)
+    
+    //Agregar metadatos de radicacion al folder radicado
+    def metadataRad = addMetadataRad(folderradicado)
+    
+    //Agregar metadatos de correspondencia al folder radicado
+    def metadataCor = addMetadataCor(folderradicado)
+    
+    //Mover los adjuntos
+    def result = setChilds(folderradicado)
+    
+    //Añadir categoria a los documentos adjuntos
+    metadatosDocs(folderradicado) 
+    
+    //Actualizar el formulario
+    FORM.idcarpeta.value = folderradicado.ID
+    forms.updateWorkFlowFormDirect(WFSTATUS,"Form", FORM)
+    
+    //Actualizar estado en tabla Sede Electronica
+    actualizarEstado()
+    
+}catch(e){
+    log.error("Error en el movimiento de documentos", e)
+}
+/***************************************Main Code END***************************************/
+
+/*************************************Funciones BEGIN*************************************/
+
+//Funcion para obtener la dependencia de un usuario
+def getDependence(){
+    
+    //Evaluar dependencia del atributo de WF
+    if(WFATTRDEP){
+        def depend = runCS("${APC.subScripts.siglatovalue}", "Z_COR_Dependencias", "${WFATTRDEP}", "Sigla", "Nombre", "").result
+        def ceco = runCS("${APC.subScripts.siglatovalue}", "Z_COR_Dependencias", "${WFATTRDEP}", "Sigla", "CECO", "").result
+        
+        if(depend){
+            FORM.paradependencia.value = depend
+            FORM.paraceco.value = ceco
+        }else{
+            FORM.paradependencia.value = "Techedge Col."
+            FORM.paraceco.value = ""
+        }
+        
+    }else{
+        //Obtener la dependencia del usuario destinatario del formulario
+        def depend = runCS("${APC.subScripts.userDepend}", "${FORM.parausuario.value}").result
+    
+        if(depend.size() > 0){
+            FORM.paradependencia.value = depend[0].Nombre 
+            FORM.paraceco.value = depend[0].CECO 
+        }else{
+            FORM.paradependencia.value = "Techedge Col."
+            FORM.paraceco.value = ""
+        }
+    }
+    
+    return FORM.paradependencia.value
+}
+
+//Funcion para obtener la zona de negocio donde se almacena la comunicacion
+def getBW(){
+    //Obtener BW del Año
+    def bw = docman.getNodeByPath(asCSNode(APC.constants.correcibida), "${FECHAACTUAL.format('yyyy')}")
+    
+    //Si no existe, crearlo
+    if(!bw){
+        bw = docman.copyNode(asCSNode(APC.constants.templatecorrec), asCSNode(APC.constants.correcibida), "${FECHAACTUAL.format('yyyy')}", false, null, false, true, false, false) 
+        bw."Comunicaciones"."Año" = "${FECHAACTUAL.format('yyyy')}"
+        bw.update()
+        bw =  asCSNode(-bw.ID as long)
+    }else{
+         bw = asCSNode(-bw.ID as long)
+    }
+    
+    return bw
+}
+
+//Funcion para obtener el folder del mes
+def getFolderMonth(businessworkspace){
+    def folder
+    //Evaluar si la comunicacion es rechazada
+    if(FORM.validacion.value == "RECH"){
+        folder = docman.getNodeByName(businessworkspace, "Rechazados")
+        FORM.estado.value = "Rechazado"
+    }else{
+        //Obtener carpeta en formato "#MM MMMM"
+        SimpleDateFormat dateFormat = new SimpleDateFormat("MMMM", new Locale("es", "ES"))
+        String month = dateFormat.format(FECHARADICADO).toString()
+        String mes = "${FECHARADICADO.format('MM')}" + " " + month.substring(0, 1).toUpperCase() + month.substring(1);
+        folder = docman.getNodeByPath(businessworkspace, mes)
+        FORM.estado.value = "Finalizado"
+    }
+    
+    return folder
+}
+
+//Funcion para crear el folder de la dependencia
+def setFolderDependence(foldermes,dependencia){
+    //Obtener la carpeta de la dependencia
+    def folder = docman.getNodeByName(foldermes,dependencia)    
+    
+    //Si no existe crearlo
+    if(!folder){
+        folder = docman.createFolder(foldermes,dependencia)
+    }
+    
+    return folder
+}
+
+//Agregar permisos a la carpeta dependencia
+def addPermissionsDependence(folderdependencia){
+    //Lista de grupos
+    def groupList = []
+            
+    //Obtener el grupo gestor de la dependencia principal
+    def result = runCS("${APC.subScripts.siglatovalue}", "Z_COR_Dependencias", "${WFATTRDEP}", "Sigla", "Grupo", "").result
+    
+    //Validar resultados
+    if(result){
+        def groupDepGID = users.getGroupByName("${users.getGroupById(result as long).displayName}_Gestores")         
+        groupList.add(groupDepGID)
+        docman.grantRights(folderdependencia, groupList.unique(), PERMISSIONS)
+        return true
+    }else{
+        return false
+    }
+        
+}
+
+//Funcion para crear el folder radicado
+def setFolderRadicado(folderdependencia){
+    //Obtener la carpeta del radicado
+    def folder = docman.getNodeByName(folderdependencia,"${FORM.radicado.value}")  
+    
+    //Si no existe crearlo
+    if(!folder){
+        folder = docman.createFolder(folderdependencia,"${FORM.radicado.value}")
+    }
+    
+    return folder
+}
+
+//Agregar permisos a la carpeta radicado
+def addPermissionsRad(folderradicado){ 
+    //Lista de usuario
+    def usersList = []
+    
+    //Agregar el usuario destinatario
+    FORM.parausuario.value.isEmpty() ? null : usersList.add(users.getMemberById(FORM.parausuario.value as long))
+    
+    //Iterar los usuarios con copia
+    def cc = getCC()
+    for(int i=0; i<cc.size(); i++){
+        if(cc[i]){
+           users.searchUsersByEmail(cc[i]).listAll().each{user->
+                usersList.add(user)
+           }
+        }
+    }
+    
+    //Agregar el PerformerID de aceptación de la comunicación
+    def perfID = runCS("${APC.subScripts.userPerfor}", "${WFSTATUS.workflowID}").result   
+    perfID.size() > 0 ? usersList.add(users.getMemberById(perfID[0].SubWorkTask_PerformerID as long)) : null
+    
+    //Agregar permisos
+    docman.grantRights(folderradicado, usersList.unique(), PERMISSIONS)
+}
+
+//Agregar metadatos de radicacion al folder radicado
+def addMetadataRad(folderradicado){
+    
+    //Agregar categoria al folder del radicado
+    docman.addCategory(folderradicado, CATRAD)
+    docman.setCategoryInheritance(folderradicado, "Radicación", true)
+   
+    //Metadatos categoria radicacion
+    folderradicado."Radicación"."Numero de Radicado" = FORM.radicado.value
+    folderradicado."Radicación"."Asunto" = FORM.asunto.value      
+    folderradicado."Radicación"."Categoria del Asunto" = runCS("${APC.subScripts.siglatovalue}", "Parametros", "${FORM.categoriaasunto.value}", null, null, "EXC").result
+    folderradicado."Radicación"."Fecha de Radicacion" = getDate(FORM.fecharadicado.valueAsDate)
+    
+    //Metadatos Usuarios en Copia
+    def userList = getCC()
+    for(int i = 0; i<userList.size(); i++){
+        folderradicado."Radicación"."Copiados"[i] = userList[i]
+    }
+    
+    //Metadato Tipo de Comunicacion
+    folderradicado."Radicación"."Tipo de Comunicacion" = runCS("${APC.subScripts.siglatovalue}", "Parametros", "${FORM.tipocomunicacion.value}", null, null, "TIPC" ).result
+    
+    //Metadato Estado
+    if(FORM.validacion.value == "RECH"){
+        folderradicado."Radicación"."Estado" = "Rechazado"
+    }else{
+        folderradicado."Radicación"."Estado" = "Activo"
+    }
+    
+    //Actualizar la categoria
+    folderradicado.update()
+}
+
+//Agregar metadatos de correspondencia al folder radicado
+def addMetadataCor(folderradicado){
+    
+    //Agregar categoria al folder del radicado
+    docman.addCategory(folderradicado, CATCER)
+    docman.setCategoryInheritance(folderradicado, "Correspondencia Recibida", true)
+    
+    //Metadatos categoria CER
+    folderradicado."Correspondencia Recibida"."Tipo de Usuario" = FORM.deempresa.value.isEmpty() ? "Persona Natural" : "Persona Jurídica"
+    folderradicado."Correspondencia Recibida"."Remitente"."Nombre" = FORM.deusuario.value
+    folderradicado."Correspondencia Recibida"."Remitente"."Correo" = FORM.decorreo.value
+    folderradicado."Correspondencia Recibida"."Remitente"."Empresa" = FORM.deempresa.value
+    folderradicado."Correspondencia Recibida"."Remitente"."Identificación" = FORM.deidentificacion.value
+    folderradicado."Correspondencia Recibida"."Destinatario" = FORM.parausuario.value.isEmpty() ? "" : FORM.parausuario.value
+    folderradicado."Correspondencia Recibida"."Dependencia destino" = FORM.paradependencia.value == "Ecopetrol S.A." ? "" : FORM.paradependencia.value
+    folderradicado."Correspondencia Recibida"."Codigo Seguro de Verificacion" = FORM.csv.value
+    
+    //Actualizar la categoria
+    folderradicado.update()
+}
+
+//Mover los adjuntos del WF
+def setChilds(folderradicado){
+    
+    //Mover los attachment de WF a la carpeta radicado
+    WFATTACHMENT.getChildren().each{Node ->
+        docman.moveNode(Node, folderradicado, null, false, true, null)
+    }
+}
+
+//Añadir la categoria a los documentos adjuntos
+def metadatosDocs(folderrad){
+    def hijosFolderRad = []
+    def anexos = docman.getNodeByName(folderrad, "Anexos")
+    getChildsByID(anexos.ID, hijosFolderRad)
+    
+    for(int i = 0; hijosFolderRad.size() > i; i++ ){
+        addMetadataRad(hijosFolderRad[i])
+        addMetadataCor(hijosFolderRad[i])
+    }
+}
+
+//Actualizar estado en tabla Sede Electronica
+def actualizarEstado(){
+    def sp = ""
+    
+    if(FORM.estado.value == "Finalizado"){
+        sp = """EXECUTE Z_SP_COR_ActualizacionFormularioExterno 
+                @WorkID = ${WFSTATUS.workflowID},
+                @ID = ${FORM.id.value},
+                @Radicado = ${FORM.radicado.value},
+                @FechaRadicado = ${FORM.fecharadicado.valueAsDate},
+                @MotivoRechazo = NULL,
+                @ObservacionesRechazo = NULL,
+                @Estado = ${FORM.estado.value}
+             """
+    }else{
+        def motrech = runCS("${APC.subScripts.siglatovalue}", "Parametros", "${FORM.motivorechazo.value}", "", "", "RCHZ").result
+        
+        sp = """EXECUTE Z_SP_COR_ActualizacionFormularioExterno 
+                @WorkID = ${WFSTATUS.workflowID},
+                @ID = ${FORM.id.value},
+                @Radicado = ${FORM.radicado.value},
+                @FechaRadicado = ${FORM.fecharadicado.valueAsDate},
+                @MotivoRechazo = '${motrech}',
+                @ObservacionesRechazo = '${FORM.observacionesrechazo.value}',
+                @Estado = ${FORM.estado.value}
+             """
+    }
+    
+    def conn = jdbc.conn("otsc")
+    conn.execute(sp)
+    conn.close()
+}
+/*************************************Funciones END*************************************/
+
+/*************************************Utils BEGIN**************************************/
+//Funcion para compensar la fecha
+def getDate(Date){
+    Calendar calendar = Calendar.getInstance()
+    calendar.setTime(Date)
+    calendar.add(Calendar.HOUR_OF_DAY, 5)
+    Date fecharadicado = calendar.getTime()
+    return fecharadicado
+}
+
+//Funcion para obtener correos en Copia
+def getCC(){
+    
+    //Listado de usuario en CC
+    def userList = []
+    
+    //Correos Externos
+    WFATTRCCEXT.each{email ->
+        email ? userList.add(email) : null        
+    }
+    
+    //Correos internos
+    WFATTRCCINT.each{email ->
+        email ? userList.add(email) : null    
+    }
+    
+    //Agregarlos al metadato
+    userList = userList.unique()
+    
+    return userList
+}
+
+//Funcion para obtener documentos y agregarlos a la lista
+def getChildsByID(folderid, listFiles){
+   
+    def node = docman.getNode(folderid as long)  
+    def childs = node.getChildren()
+    
+    childs.each{
+        it.subtype == 144 ? listFiles.add(it) : getChildsByID(it.ID, listFiles)
+    }
+}
+
+/*************************************Utils END**************************************/
+
+/***** CS que mueve los archivos de WF de correspondencia a la taxonomia - DGC 27/04/2020 END *****/
+
+
+
+
