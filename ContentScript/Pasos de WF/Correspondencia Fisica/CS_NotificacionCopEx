@@ -1,0 +1,216 @@
+/*
+████████╗███████╗ ██████╗██╗  ██╗███████╗██████╗  ██████╗ ███████╗    ████████╗███████╗ █████╗ ███╗   ███╗
+╚══██╔══╝██╔════╝██╔════╝██║  ██║██╔════╝██╔══██╗██╔════╝ ██╔════╝    ╚══██╔══╝██╔════╝██╔══██╗████╗ ████║
+   ██║   █████╗  ██║     ███████║█████╗  ██║  ██║██║  ███╗█████╗         ██║   █████╗  ███████║██╔████╔██║
+   ██║   ██╔══╝  ██║     ██╔══██║██╔══╝  ██║  ██║██║   ██║██╔══╝         ██║   ██╔══╝  ██╔══██║██║╚██╔╝██║
+   ██║   ███████╗╚██████╗██║  ██║███████╗██████╔╝╚██████╔╝███████╗       ██║   ███████╗██║  ██║██║ ╚═╝ ██║
+   ╚═╝   ╚══════╝ ╚═════╝╚═╝  ╚═╝╚══════╝╚═════╝  ╚═════╝ ╚══════╝       ╚═╝   ╚══════╝╚═╝  ╚═╝╚═╝     ╚═╝
+                                            ╦╔╗╔╔═╗╔═╗╦╦═╗╦╔╗╔╔═╗  ╔╦╗╦═╗╦ ╦╔═╗╔╦╗  ╔═╗╦  ╔═╗╔╗ ╔═╗╦  ╦ ╦ ╦
+                                            ║║║║╚═╗╠═╝║╠╦╝║║║║║ ╦   ║ ╠╦╝║ ║╚═╗ ║   ║ ╦║  ║ ║╠╩╗╠═╣║  ║ ╚╦╝
+                                            ╩╝╚╝╚═╝╩  ╩╩╚═╩╝╚╝╚═╝   ╩ ╩╚═╚═╝╚═╝ ╩   ╚═╝╩═╝╚═╝╚═╝╩ ╩╩═╝╩═╝╩ 
+*/
+/***** CS notificación copiados, delegados, excepciones - DGC 29/09/2020 BEGIN *****/
+
+//Definicion de constantes
+APC = docman.getScriptByNickname("am_correspondencia_config").getCSVars()?.app
+wfstatus = workflow.getWorkflowStatus(workID, subWorkID)
+form = forms.getWorkFlowFormDirect(wfstatus, "Form")
+emailtemplate = docman.getNode(APC.constants.correoDisEle)
+
+//Definicion de variables
+mailList = []
+
+//Objeto correo
+class EmailProperties{
+    String email
+    String asunto
+    String footer
+    String info
+    String dep
+}
+
+//Instancia del objeto
+correo = new EmailProperties()
+
+/***************************Main Code BEGIN***************************/
+
+try{
+    
+    //Obtener lista de correos cc
+    getCC()
+    
+    //Obtener lista de correos categoria asunto
+    getCatEx() 
+    
+    //Obtener lista de correos excepcion empresa
+    getEmpEx()
+    
+    //Crear el cuerpo de correo
+    setEmailProperties()
+    
+    //Enviar correo
+    send()
+    
+}catch(e){
+    log.error("Error en la notificacion copiados DELE", e)
+}
+
+/***************************Main Code END***************************/
+
+/***************************Funciones BEGIN***************************/
+
+//Funcion para obtener los usuarios en cc
+def getCC(){
+    
+    //Iterar el set de cc, si existe delegado se agrega el delegado
+    form.ccint.each{it->
+        !it.delegado.value.isEmpty() ? (mailList.add(getEmail(it.delegado.value))) : (!it.nombre.value.isEmpty() ? mailList.add(getEmail(it.nombre.value)) : null)         
+    }
+}
+
+//Funcion para obtener los usuarios de la excepcion categoria asunto
+def getCatEx(){
+       
+    //Consulta para validar las excepciones por categoria asunto
+    def query = """SELECT (SELECT STRING_AGG(Destinatario, ';') FROM Z_COR_Excepciones WHERE Seq = ex.Seq) AS 'Destinatario',
+                           ex.Correo
+                   FROM Z_COR_Excepciones ex
+                   WHERE ex.Activo = 1 
+                   AND ex.RowSeqNum = 1
+                   AND ex.Excepciones = '${form.categoriaasunto.value}'
+                """
+    
+    def result = sql.runSQLFast(query, false, false, 0).rows
+    
+    //Validar que la consulta tenga resultados
+    if(result.size() > 0){
+        
+        //Agregar usuarios de la excepcion
+        result[0].Destinatario.split(";").each{it->
+            mailList.add(getEmail(it))
+        }
+        
+        //Agregar correos de la excepcion
+        result[0].Correo.split(";").each{it->
+            mailList.add(it)
+        }
+    }
+}
+
+//Funcion para obtener los usuarios de la excepcion de empresa
+def getEmpEx(){
+    
+    //Evaluar que el origen de la comunicacion sea correspondencia recibida
+    if(form.origencomunicado.value == "REXT"){
+        //Evaluar que el campo empresa no se encuentre vacio
+        if(!form.deempresa.value.isEmpty()){
+            
+            //Consulta para validar excepciones por la empresa
+            def query = """SELECT (SELECT STRING_AGG (Destinatario, ';') FROM Z_COR_ExcepcionesEmpresa WHERE Seq = em.Seq) AS 'Destinatario',
+                           em.Correo
+                           FROM Z_COR_ExcepcionesEmpresa em
+                           WHERE em.Activo = 1 AND em.RowSeqNum = 1
+                           AND em.Empresa = '${form.deempresa.value}'
+                        """
+            
+            def result = sql.runSQLFast(query, false, false, 0).rows
+            
+            //Validar que la consulta tenga resultados
+            if(result.size() > 0){
+        
+                //Agregar usuarios de la excepcion
+                result[0].Destinatario.split(";").each{it->
+                    mailList.add(getEmail(it))
+                }
+        
+                //Agregar correos de la excepcion
+                result[0].Correo.split(";").each{it->
+                    mailList.add(it)
+                }
+            }
+        }
+    }
+}
+
+//Funcion para mapear las propiedades del objeto correo
+def setEmailProperties(){
+    
+    //Cuerpo del correo
+    correo.email = "<tr>"
+    correo.email+="<td align='justify'>${form.asunto.value}</td>"
+    correo.email+="<td align='center'><a href='https://co-explorationlab.r53.techedgegroup.com/OTCS/llisapi.dll?func=ll&objId=${form.idcarpeta.value}&objAction=browse' target='_blank'>${form.radicado.value}</td>"
+    correo.email+="<td align='center'>${form.fecharadicado.valueAsDate.format("dd/MM/yyyy hh:mm aa")}</td>"
+    correo.email+="<td align='center'>${runCS("${APC.subScripts.siglatovalue}", "Parametros", "${form.tipocomunicacion.value}", null, null, "TIPC").result}</td>"
+    correo.email+="<td align='center'>${form.origencomunicado.value == "INT" ? users.getUserById(form.deusuarioint.value as long).displayName : form.deusuariorext.value}</td>"
+    correo.email+="<td align='center'>${form.origencomunicado.value == "INT" ? getDependence(form.dedependencia.value) : (form.deempresa.value.isEmpty() ? "N/A" : getEnterprise(form.deempresa.value))}</td>"
+    correo.email+="<td align='center'>${form.nanexos.value}</td>"
+    correo.email+="<td align='center'>${form.nfolios.value}</td>"
+    correo.email+= "</tr>"
+    
+    //Asunto 
+    correo.asunto = "Copia comunicación No. ${form.radicado.value}"
+    
+    //Footer
+    correo.footer = runCS("${APC.subScripts.siglatovalue}", "Parametros", "Footer", null, null, "FISICA").result
+    
+    //Informacion
+    correo.info = runCS("${APC.subScripts.siglatovalue}", "Parametros", "CINF", null, null, "FISICA").result
+    
+    //Label dependencia
+    correo.dep = form.origencomunicado.value == "INT" ? "Dependencia" : "Empresa remitente"
+}
+
+//Funcion para enviar el correo
+def send(){
+    
+    //Evaluar el template
+    def emailContext = ['asunto':"<h1>${correo.asunto}</h1>", 
+                        'dependencia':correo.dep, 
+                        'body':correo.email, 
+                        'footer':correo.footer, 
+                        'info':correo.info]
+    
+    def mailbody = template.evaluateTemplate(emailtemplate, emailContext)
+    def email = mail.create(mailbody)
+    
+    //Destinatarios
+    mailList.unique().each{it->
+        email.to(it)
+    }
+    
+    //Enviar correo
+    email.from("correspondenciatechedgecol@gmail.com")
+    email.subject(correo.asunto)
+    mail.send(email, "correspondencia")   
+}
+
+/***************************Funciones END***************************/
+
+/****************************Utils BEGIN****************************/
+
+//Funcion para obtener el correo de un usuario
+def getEmail(userID){
+    
+    return users.getUserById(userID as long).email
+}
+
+//Funcion para obtener el nombre de una dependencia
+def getDependence(dep){
+    
+    return runCS("${APC.subScripts.siglatovalue}", "Z_COR_Dependencias", "${dep}", "Sigla", "Nombre", null).result
+}
+
+//Funcion para obtener el nombre de una empresa
+def getEnterprise(nit){
+    
+    return runCS("${APC.subScripts.siglatovalue}", "Z_COR_Empresas", "${nit}", "NIT", "Nombre", null).result
+}
+
+/****************************Utils END****************************/
+
+/***** CS notificación copiados, delegados, excepciones - DGC 29/09/2020 END *****/
+
+
+
+
+
