@@ -1,0 +1,70 @@
+/*
+████████╗███████╗ ██████╗██╗  ██╗███████╗██████╗  ██████╗ ███████╗    ████████╗███████╗ █████╗ ███╗   ███╗
+╚══██╔══╝██╔════╝██╔════╝██║  ██║██╔════╝██╔══██╗██╔════╝ ██╔════╝    ╚══██╔══╝██╔════╝██╔══██╗████╗ ████║
+   ██║   █████╗  ██║     ███████║█████╗  ██║  ██║██║  ███╗█████╗         ██║   █████╗  ███████║██╔████╔██║
+   ██║   ██╔══╝  ██║     ██╔══██║██╔══╝  ██║  ██║██║   ██║██╔══╝         ██║   ██╔══╝  ██╔══██║██║╚██╔╝██║
+   ██║   ███████╗╚██████╗██║  ██║███████╗██████╔╝╚██████╔╝███████╗       ██║   ███████╗██║  ██║██║ ╚═╝ ██║
+   ╚═╝   ╚══════╝ ╚═════╝╚═╝  ╚═╝╚══════╝╚═════╝  ╚═════╝ ╚══════╝       ╚═╝   ╚══════╝╚═╝  ╚═╝╚═╝     ╚═╝
+                                            ╦╔╗╔╔═╗╔═╗╦╦═╗╦╔╗╔╔═╗  ╔╦╗╦═╗╦ ╦╔═╗╔╦╗  ╔═╗╦  ╔═╗╔╗ ╔═╗╦  ╦ ╦ ╦
+                                            ║║║║╚═╗╠═╝║╠╦╝║║║║║ ╦   ║ ╠╦╝║ ║╚═╗ ║   ║ ╦║  ║ ║╠╩╗╠═╣║  ║ ╚╦╝
+                                            ╩╝╚╝╚═╝╩  ╩╩╚═╩╝╚╝╚═╝   ╩ ╩╚═╚═╝╚═╝ ╩   ╚═╝╩═╝╚═╝╚═╝╩ ╩╩═╝╩═╝╩ 
+*/
+/***** Paso de WF para generar las URLs de acceso en el PDF del radicado - FFG 10/11/2020 BEGIN *****/
+
+//**** Declaracion de constantes
+APC = docman.getScriptByNickname("am_correspondencia_config").getCSVars()?.app
+WFSTATUS = workflow.getWorkflowStatus(workID, subWorkID)
+WFATTACHMENTS = WFSTATUS.attachments
+WFANEXOS = docman.getNodeByName(WFATTACHMENTS, "Anexos")
+FORM = forms.getWorkFlowFormDirect(WFSTATUS, "Form")
+URLFOLDER = APC.constants.gestordocumental + "/OTCS/cs.exe?func=ll&objId=${WFANEXOS.ID}&objAction=browse"
+
+//**** Declaracion de variables
+csv = ''
+
+/******************************************Main Code BEGIN******************************************/
+try{
+	
+    //Generar vinculos PDF
+    generarVinculosPDF()
+   
+}catch(e){
+    log.error("Error al generar los vinculos del archivo PDF", e)
+}
+/******************************************Main Code END******************************************/
+
+/*****************************************Functions BEGIN*****************************************/
+
+
+//Funcion para generar los vinculos de anexos en el PDF
+def generarVinculosPDF(){
+	FORM.anexos.value= ""
+	FORM.anexos.value+= "<ul>"
+	//Hipervinculo para usuarios internos de Ecopetrol
+	FORM.anexos.value+= "<li>Haz clic <a href=\"${URLFOLDER}\">aquí</a>, si tienes cuenta de Techedge y deseas ver los anexos</li>"
+   
+	//Hipervinculo para usuarios externos de Ecopetrol
+	csv = generarCSV()
+	def vinculoExterno = APC.constants.sedeElectronica + "/${csv}/sharedDocs"
+	FORM.anexos.value += "<li>Haz clic <a href=\"${vinculoExterno}\">aquí</a> si eres un usuario externo y deseas ver los anexos</li>"
+	FORM.anexos.value += "</ul>"
+   
+	//Actualizar el form en el WF
+	FORM.csv.value = csv
+    FORM.idcarpeta.value = WFANEXOS.ID
+	forms.updateWorkFlowFormDirect(WFSTATUS, "Form", FORM)
+}
+
+//Crea el codigo CSV usando en el link
+String generarCSV(){
+    def fechaHoyAux = new Date()
+    def fechaHoy = fechaHoyAux.format('yyyyMMddHHmmss')
+    def radicado = FORM.radicado.value
+    return (radicado + fechaHoy).digest('SHA-256')  
+}
+
+/*****************************************Functions END*****************************************/
+
+/***** Paso de WF para generar las URLs de acceso en el PDF del radicado - FFG 10/11/2020 END *****/
+
+
