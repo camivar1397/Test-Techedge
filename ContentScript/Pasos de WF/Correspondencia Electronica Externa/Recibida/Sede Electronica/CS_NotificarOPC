@@ -1,0 +1,160 @@
+/*
+████████╗███████╗ ██████╗██╗  ██╗███████╗██████╗  ██████╗ ███████╗    ████████╗███████╗ █████╗ ███╗   ███╗
+╚══██╔══╝██╔════╝██╔════╝██║  ██║██╔════╝██╔══██╗██╔════╝ ██╔════╝    ╚══██╔══╝██╔════╝██╔══██╗████╗ ████║
+   ██║   █████╗  ██║     ███████║█████╗  ██║  ██║██║  ███╗█████╗         ██║   █████╗  ███████║██╔████╔██║
+   ██║   ██╔══╝  ██║     ██╔══██║██╔══╝  ██║  ██║██║   ██║██╔══╝         ██║   ██╔══╝  ██╔══██║██║╚██╔╝██║
+   ██║   ███████╗╚██████╗██║  ██║███████╗██████╔╝╚██████╔╝███████╗       ██║   ███████╗██║  ██║██║ ╚═╝ ██║
+   ╚═╝   ╚══════╝ ╚═════╝╚═╝  ╚═╝╚══════╝╚═════╝  ╚═════╝ ╚══════╝       ╚═╝   ╚══════╝╚═╝  ╚═╝╚═╝     ╚═╝
+                                            ╦╔╗╔╔═╗╔═╗╦╦═╗╦╔╗╔╔═╗  ╔╦╗╦═╗╦ ╦╔═╗╔╦╗  ╔═╗╦  ╔═╗╔╗ ╔═╗╦  ╦ ╦ ╦
+                                            ║║║║╚═╗╠═╝║╠╦╝║║║║║ ╦   ║ ╠╦╝║ ║╚═╗ ║   ║ ╦║  ║ ║╠╩╗╠═╣║  ║ ╚╦╝
+                                            ╩╝╚╝╚═╝╩  ╩╩╚═╩╝╚╝╚═╝   ╩ ╩╚═╚═╝╚═╝ ╩ @  ╚═╝╩═╝╚═╝╚═╝╩ ╩╩═╝╩═╝╩ 
+*/
+/***** CS para enviar notificación a OPC - Derechos de Peticion - DGC 14/05/2020 BEGIN *****/
+
+//**** Declaracion de constantes
+APP = csvars.app
+APC = docman.getScriptByNickname("am_correspondencia_config").getCSVars()?.app
+CONF = sql.runSQLFast(APP.querys.conf , false, false, 0).rows.collectEntries{[(it.Sigla):it.DescripcionLarga]}
+WFSTATUS = workflow.getWorkflowStatus(workID, subWorkID)
+WFATTACHMENTS = WFSTATUS.attachments
+WFANEXOS = docman.getNodeByName(WFATTACHMENTS, "Anexos")
+FORM = forms.getWorkFlowFormDirect(WFSTATUS, "Form")
+ASUNTOCORREO = FORM.radicado.value
+EMAILTEMPLATE = docman.getNode(APC.constants.correoOPC)
+
+//**** Declaracion de variables
+
+//Objeto correo
+class EmailProperties{
+    String remitente
+    String asunto
+    int folios
+    int anexos
+    String observaciones
+    String telefono
+    String direccion
+    String ciudad
+    String departamento
+    String radicado
+    String fecharadicado 
+    String link
+    }
+
+//Instancia del objeto
+def newCorreo = new EmailProperties()
+
+//Lista de Anexos
+def listAnexos = []
+
+//Usuario remitente
+newCorreo.remitente = "<p style = 'text-indent : 5em;'>${FORM.deusuario.value}</p>"
+newCorreo.remitente += "<p style = 'text-indent : 5em;'>${FORM.decorreo.value}</p>"
+newCorreo.remitente += FORM.deempresa.value.isEmpty() ? "" : "<p style = 'text-indent : 5em;'>${FORM.deempresa.value}</p>"
+newCorreo.remitente += "<p style = 'text-indent : 5em;'>Número de Identificación: ${FORM.deidentificacion.value}</p>"
+
+//Parametros
+newCorreo.asunto = FORM.asunto.value
+newCorreo.telefono = FORM.detelefono.value
+newCorreo.direccion = FORM.dedireccion.value
+newCorreo.ciudad = FORM.deciudad.value
+newCorreo.departamento = runCS("${APC.subScripts.siglatovalue}", "Z_COR_Municipios", "${FORM.deciudad.value}", "Ciudad", "Pais", "").result
+newCorreo.folios = 0
+newCorreo.anexos = FORM.nanexos.value as int
+newCorreo.observaciones = FORM.observaciones.value.replaceAll("<[^>]*>","").replaceAll("&.*?;","")
+newCorreo.radicado = FORM.radicado.value
+newCorreo.fecharadicado = FORM.fecharadicado.valueAsDate.format("dd/MM/yyyy hh:mm:ss a")
+
+/******************************************Main Code BEGIN******************************************/
+try{
+    
+    if(FORM.tipocomunicacion.value == "DPT"){
+        //Evaluar anexos
+        setAnexos(listAnexos)
+
+        //Enviar el correo de notificación
+        enviarCorreo(newCorreo, listAnexos)
+    }
+}catch(e){
+    log.error("Error en el envio de la notificacion OPC", e)
+}
+/******************************************Main Code END******************************************/
+
+/*****************************************Functions BEGIN*****************************************/
+
+def setAnexos(listAnexos){
+    double size = 0
+    
+    //Validar peso radicado
+    def radicElect = docman.getNodeByName(WFATTACHMENTS, "${FORM.radicado.value}.pdf")
+    File radic = radicElect.content.content
+    
+    size += getFileSizeMegaBytes(radic)
+    
+    //Validar peso anexos
+    WFANEXOS.getChildren().each{doc ->
+        File file = doc.content.content
+        size += getFileSizeMegaBytes(file)
+    }
+    
+    //Evaluar peso
+    if(size > (CONF.get('Size') as int)){
+        listAnexos.add(radicElect)
+    }else{
+        listAnexos.add(radicElect)
+        WFANEXOS.getChildren().each{doc->
+            listAnexos.add(doc)
+        }
+    }
+}
+
+//Envio de correo
+def enviarCorreo(newCorreo, listAnexos){
+    
+    //Evaluar peso, se pide que siempre se envíe el link siempre #bug 66233
+    (true) ? (newCorreo.link = "Links para ver documentos: ${FORM.anexos.value}") : (newCorreo.link = "")
+    
+    //Evaluar template
+    def emailContext = ['Remitente':newCorreo.remitente, 
+                        'Telefono':newCorreo.telefono,
+                        'Direccion':newCorreo.direccion,
+                        'Ciudad':newCorreo.ciudad,
+                        'Departamento':newCorreo.departamento,
+                        'Asunto':newCorreo.asunto,
+                        'Folios':newCorreo.folios,
+                        'Anexos':newCorreo.anexos,
+                        'Observaciones':newCorreo.observaciones,
+                        'Radicado':newCorreo.radicado,
+                        'FechaRadicado':newCorreo.fecharadicado,
+                        'Link':newCorreo.link]
+    
+    def mailbody = template.evaluateTemplate(EMAILTEMPLATE, emailContext)
+    def correo = mail.create(mailbody)
+
+    //Adjuntos en el correo
+    listAnexos.each{doc->
+        correo.attach(doc, "${doc.name}")
+    }
+    
+    //Enviar Correo
+    correo.to(CONF.get('Email'))
+    correo.from("correspondenciatechedgecol@gmail.com")
+    correo.subject(ASUNTOCORREO)
+    mail.send(correo, "correspondencia")
+    
+}
+
+/*****************************************Functions END*****************************************/
+
+/*************************************Utils BEGIN*************************************/
+
+def getFileSizeMegaBytes(file){
+    return (double) file.length()/(1024 * 1024)
+}
+/*************************************Utils END*************************************/
+
+/***** CS para enviar notificación a OPC - Derechos de Peticion - DGC 14/05/2020 END *****/
+
+
+
+
+
