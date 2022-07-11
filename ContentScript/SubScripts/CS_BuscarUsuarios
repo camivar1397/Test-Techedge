@@ -1,0 +1,36 @@
+/*
+████████╗███████╗ ██████╗██╗  ██╗███████╗██████╗  ██████╗ ███████╗    ████████╗███████╗ █████╗ ███╗   ███╗
+╚══██╔══╝██╔════╝██╔════╝██║  ██║██╔════╝██╔══██╗██╔════╝ ██╔════╝    ╚══██╔══╝██╔════╝██╔══██╗████╗ ████║
+   ██║   █████╗  ██║     ███████║█████╗  ██║  ██║██║  ███╗█████╗         ██║   █████╗  ███████║██╔████╔██║
+   ██║   ██╔══╝  ██║     ██╔══██║██╔══╝  ██║  ██║██║   ██║██╔══╝         ██║   ██╔══╝  ██╔══██║██║╚██╔╝██║
+   ██║   ███████╗╚██████╗██║  ██║███████╗██████╔╝╚██████╔╝███████╗       ██║   ███████╗██║  ██║██║ ╚═╝ ██║
+   ╚═╝   ╚══════╝ ╚═════╝╚═╝  ╚═╝╚══════╝╚═════╝  ╚═════╝ ╚══════╝       ╚═╝   ╚══════╝╚═╝  ╚═╝╚═╝     ╚═╝
+                                            ╦╔╗╔╔═╗╔═╗╦╦═╗╦╔╗╔╔═╗  ╔╦╗╦═╗╦ ╦╔═╗╔╦╗  ╔═╗╦  ╔═╗╔╗ ╔═╗╦  ╦ ╦ ╦
+                                            ║║║║╚═╗╠═╝║╠╦╝║║║║║ ╦   ║ ╠╦╝║ ║╚═╗ ║   ║ ╦║  ║ ║╠╩╗╠═╣║  ║ ╚╦╝
+                                            ╩╝╚╝╚═╝╩  ╩╩╚═╩╝╚╝╚═╝   ╩ ╩╚═╚═╝╚═╝ ╩   ╚═╝╩═╝╚═╝╚═╝╩ ╩╩═╝╩═╝╩ 
+*/
+/***** CS para obtener el ID del usuario mediante el correo ingresado - LPA 06/04/2020 BEGIN *****/
+def correoUsuario = args[0] 
+def result = [:]
+try{
+    buscarUsuario(correoUsuario,result)  
+}catch(e){
+    result.msgdesc = "Error: " + e
+	result.msgcode = "false"
+}
+return result
+def buscarUsuario(String correo, result){
+    def queryIDUsuario = """SELECT TOP(1) ID
+                            FROM KUAF
+                            WHERE Type = 0
+                            AND Deleted = 0
+                            AND MailAddress = '${correo}'
+                         """
+    def resultQuery = sql.runSQLFast(queryIDUsuario,  false,  false,  0).rows
+    if(resultQuery){
+        result.msgdesc = "ID usuario Obtenido"
+        result.msgcode = "true"
+        result.result = resultQuery  
+    }   
+}
+/***** CS para obtener el radicado de referencia - LPA 01/04/2020 END *****/
