@@ -1,0 +1,82 @@
+/*
+████████╗███████╗ ██████╗██╗  ██╗███████╗██████╗  ██████╗ ███████╗    ████████╗███████╗ █████╗ ███╗   ███╗
+╚══██╔══╝██╔════╝██╔════╝██║  ██║██╔════╝██╔══██╗██╔════╝ ██╔════╝    ╚══██╔══╝██╔════╝██╔══██╗████╗ ████║
+   ██║   █████╗  ██║     ███████║█████╗  ██║  ██║██║  ███╗█████╗         ██║   █████╗  ███████║██╔████╔██║
+   ██║   ██╔══╝  ██║     ██╔══██║██╔══╝  ██║  ██║██║   ██║██╔══╝         ██║   ██╔══╝  ██╔══██║██║╚██╔╝██║
+   ██║   ███████╗╚██████╗██║  ██║███████╗██████╔╝╚██████╔╝███████╗       ██║   ███████╗██║  ██║██║ ╚═╝ ██║
+   ╚═╝   ╚══════╝ ╚═════╝╚═╝  ╚═╝╚══════╝╚═════╝  ╚═════╝ ╚══════╝       ╚═╝   ╚══════╝╚═╝  ╚═╝╚═╝     ╚═╝
+                                            ╦╔╗╔╔═╗╔═╗╦╦═╗╦╔╗╔╔═╗  ╔╦╗╦═╗╦ ╦╔═╗╔╦╗  ╔═╗╦  ╔═╗╔╗ ╔═╗╦  ╦ ╦ ╦
+                                            ║║║║╚═╗╠═╝║╠╦╝║║║║║ ╦   ║ ╠╦╝║ ║╚═╗ ║   ║ ╦║  ║ ║╠╩╗╠═╣║  ║ ╚╦╝
+                                            ╩╝╚╝╚═╝╩  ╩╩╚═╩╝╚╝╚═╝   ╩ ╩╚═╚═╝╚═╝ ╩   ╚═╝╩═╝╚═╝╚═╝╩ ╩╩═╝╩═╝╩ 
+*/
+/***** Busca todas las comunicaciones que se entregaron a currier y no se pudo entregar Correspondencia - JHMM 26/07/2020 BEGIN *****/
+
+/*
+	Utility function to find an entry by ID in the database.
+*/
+def getByID(String id) {    
+    def sqlCode = """SELECT Seq, Radicado,
+                     FORMAT(DATEADD(HH,-5,FechaRadicado), 'dd/MM/yyyy hh:mm:ss tt') as Fecha
+                     FROM Z_COR_RadicacionFisica
+                     WHERE Seq = ${id}
+                     AND RowSeqNum = 1
+                  """
+    Boolean cursorEnabled = false 
+    Boolean transactionEnabled = false
+    Integer recordLimit = 1
+    def result = sql.runSQLFast(sqlCode,  cursorEnabled,  transactionEnabled,  recordLimit).rows.collect{
+          [ id:it.Seq, text:"No. Radicado: ${it.Radicado}", desc:"Fecha radicación: ${it.Fecha}", image:"${img}empty.gif" ]
+    }
+    
+    if(result){    
+        return result[0]
+    }
+    else{
+        return []
+    }
+}
+
+/*
+	Utility function to find entries in the database.
+*/
+def getAll(String searchTerm, String CGC) {
+    String cond = ""
+    if(searchTerm){
+        cond = "AND UPPER(Radicado) LIKE UPPER('%${searchTerm}%')"
+    }
+    
+    def sqlCode = """SELECT Seq, Radicado,
+                     FORMAT(DATEADD(HH,-5,FechaRadicado), 'dd/MM/yyyy hh:mm:ss tt') as Fecha
+                     FROM Z_COR_RadicacionFisica
+                     WHERE OrigenComunicado = 'EXT' 
+                     AND Estado = 'Finalizado'
+                     AND CGC = '${CGC}'
+                     ${cond}
+                     ORDER BY Seq
+                  """
+
+    Boolean cursorEnabled = false 
+    Boolean transactionEnabled = false
+    Integer recordLimit = 1
+    def result = sql.runSQLFast(sqlCode,  cursorEnabled,  transactionEnabled,  recordLimit).rows.collect{
+        [ id:it.Seq, text:"No. Radicado: ${it.Radicado}" , desc:"Fecha radicación: ${it.Fecha}", image:"${img}empty.gif" ]}
+    return result
+}
+
+/*
+	Main code
+*/
+try{
+        
+    if(params.id){
+    	result = getByID(params.id)
+    } else {
+        result = getAll(params.term, params.cgc)
+    }
+    //return result
+    json(result)
+
+} catch(e) {
+	log.error("Error en Busqueda de novedad Correspondencia en REST service.", e)
+}
+/***** Busca todos los WF/Radicados de Correspondencia - DGC 24/01/2020 END *****/
