@@ -1,0 +1,60 @@
+/*
+████████╗███████╗ ██████╗██╗  ██╗███████╗██████╗  ██████╗ ███████╗    ████████╗███████╗ █████╗ ███╗   ███╗
+╚══██╔══╝██╔════╝██╔════╝██║  ██║██╔════╝██╔══██╗██╔════╝ ██╔════╝    ╚══██╔══╝██╔════╝██╔══██╗████╗ ████║
+   ██║   █████╗  ██║     ███████║█████╗  ██║  ██║██║  ███╗█████╗         ██║   █████╗  ███████║██╔████╔██║
+   ██║   ██╔══╝  ██║     ██╔══██║██╔══╝  ██║  ██║██║   ██║██╔══╝         ██║   ██╔══╝  ██╔══██║██║╚██╔╝██║
+   ██║   ███████╗╚██████╗██║  ██║███████╗██████╔╝╚██████╔╝███████╗       ██║   ███████╗██║  ██║██║ ╚═╝ ██║
+   ╚═╝   ╚══════╝ ╚═════╝╚═╝  ╚═╝╚══════╝╚═════╝  ╚═════╝ ╚══════╝       ╚═╝   ╚══════╝╚═╝  ╚═╝╚═╝     ╚═╝
+                                            ╦╔╗╔╔═╗╔═╗╦╦═╗╦╔╗╔╔═╗  ╔╦╗╦═╗╦ ╦╔═╗╔╦╗  ╔═╗╦  ╔═╗╔╗ ╔═╗╦  ╦ ╦ ╦
+                                            ║║║║╚═╗╠═╝║╠╦╝║║║║║ ╦   ║ ╠╦╝║ ║╚═╗ ║   ║ ╦║  ║ ║╠╩╗╠═╣║  ║ ╚╦╝
+                                            ╩╝╚╝╚═╝╩  ╩╩╚═╩╝╚╝╚═╝   ╩ ╩╚═╚═╝╚═╝ ╩   ╚═╝╩═╝╚═╝╚═╝╩ ╩╩═╝╩═╝╩ 
+*/
+/***** CS que genera la tabla de entrega al archivo en la vista print - DGC 21/10/2020 BEGIN *****/
+
+//**** Declaracion de constantes
+APC = docman.getScriptByNickname("am_correspondencia_config").getCSVars()?.app
+
+//**** Declaracion de variables
+def size
+
+/******************************************Main Code BEGIN******************************************/
+try{
+    size = form.radicados.size()
+    render(size)
+}catch(e){
+    log.error("Error en el CS PrintEntregaArchivo", e)
+}
+/******************************************Main Code END******************************************/
+
+/*****************************************Functions BEGIN*****************************************/
+
+def render(size){
+    def writer = new StringWriter()
+    def htmlDoc = new MarkupBuilder(writer)
+	htmlDoc.table(class:"table table-bordered table-condensed") {
+    	tr{
+            th{ span "Radicado" }
+            th{ span "Fecha Radicado" }
+            th{ span "Asunto" }
+            th{ span "Remitente" }
+            th{ span "Destinatario" }
+            th{ span "N. Anexos" }
+            th{ span "N. Folios" }
+        }
+		for(int i=0; i<size; i++){
+            tr{
+                td{ span ""+form.radicados[i].radicado.value }
+                td{ span ""+form.radicados[i].fecharadicado.value }
+                td{ span ""+form.radicados[i].asunto.value }
+                td{ span ""+form.radicados[i].remitente.value }
+                td{ span ""+runCS("${APC.subScripts.siglatovalue}", "Usuario", "${form.radicados[i].destinatario.value}", "", "", "").result}
+                td{ span ""+form.radicados[i].nanexos.value }
+                td{ span ""+form.radicados[i].nfolios.value }
+            }
+        }
+	}
+    htmlInputs = writer.toString()
+}
+/*****************************************Functions END*****************************************/
+
+/***** CS que genera la tabla de entrega al archivo en la vista print - DGC 21/10/2020 END *****/
