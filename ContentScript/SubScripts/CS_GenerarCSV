@@ -1,0 +1,56 @@
+/*
+████████╗███████╗ ██████╗██╗  ██╗███████╗██████╗  ██████╗ ███████╗    ████████╗███████╗ █████╗ ███╗   ███╗
+╚══██╔══╝██╔════╝██╔════╝██║  ██║██╔════╝██╔══██╗██╔════╝ ██╔════╝    ╚══██╔══╝██╔════╝██╔══██╗████╗ ████║
+   ██║   █████╗  ██║     ███████║█████╗  ██║  ██║██║  ███╗█████╗         ██║   █████╗  ███████║██╔████╔██║
+   ██║   ██╔══╝  ██║     ██╔══██║██╔══╝  ██║  ██║██║   ██║██╔══╝         ██║   ██╔══╝  ██╔══██║██║╚██╔╝██║
+   ██║   ███████╗╚██████╗██║  ██║███████╗██████╔╝╚██████╔╝███████╗       ██║   ███████╗██║  ██║██║ ╚═╝ ██║
+   ╚═╝   ╚══════╝ ╚═════╝╚═╝  ╚═╝╚══════╝╚═════╝  ╚═════╝ ╚══════╝       ╚═╝   ╚══════╝╚═╝  ╚═╝╚═╝     ╚═╝
+                                            ╦╔╗╔╔═╗╔═╗╦╦═╗╦╔╗╔╔═╗  ╔╦╗╦═╗╦ ╦╔═╗╔╦╗  ╔═╗╦  ╔═╗╔╗ ╔═╗╦  ╦ ╦ ╦
+                                            ║║║║╚═╗╠═╝║╠╦╝║║║║║ ╦   ║ ╠╦╝║ ║╚═╗ ║   ║ ╦║  ║ ║╠╩╗╠═╣║  ║ ╚╦╝
+                                            ╩╝╚╝╚═╝╩  ╩╩╚═╩╝╚╝╚═╝   ╩ ╩╚═╚═╝╚═╝ ╩   ╚═╝╩═╝╚═╝╚═╝╩ ╩╩═╝╩═╝╩ 
+*/
+/***** CS generar codigo seguro de verificacion - LPA 06/04/2020 BEGIN *****/
+def result = [:]
+try{
+    generarCSV(result)
+    while(validarCSV(result)){
+        generarCSV(result)
+    }
+    
+}catch(e){
+    result.msgdesc = "Error: " + e
+	result.msgcode = "false"
+}
+return result
+
+def generarCSV(result){
+    String alfabetominus = 'abcdefghijklmnopqrstuvwxyz'
+    String alfabetomayus = alfabetominus.toUpperCase()
+    String numeros = '123456789'
+    String caracteres = alfabetominus+alfabetomayus+numeros
+    int longitud = 28
+    String csv = ''
+    
+    for(int i=0; i<longitud; i++){
+        int random = Math.random()*caracteres.length() as int
+        csv += caracteres.charAt(random)
+    } 
+    
+    result.msgdesc = "CSV Obtenido"
+    result.msgcode = "true"
+    result.result = csv  
+}
+
+def validarCSV(result){
+    boolean resultado = false 
+    def queryCSV="""SELECT CVS
+                    FROM Z_COR_RadicacionExternos
+                    WHERE CVS= '${result.result}'
+                 """
+    def resultQuery = sql.runSQLFast(queryCSV,  false,  false,  0).rows
+    if(resultQuery.size()>0){
+         resultado = true
+    }
+    return resultado
+}
+/***** CS generar codigo seguro de verificacion - LPA 01/04/2020 END *****/
