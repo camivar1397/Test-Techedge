@@ -1,0 +1,35 @@
+/*
+████████╗███████╗ ██████╗██╗  ██╗███████╗██████╗  ██████╗ ███████╗    ████████╗███████╗ █████╗ ███╗   ███╗
+╚══██╔══╝██╔════╝██╔════╝██║  ██║██╔════╝██╔══██╗██╔════╝ ██╔════╝    ╚══██╔══╝██╔════╝██╔══██╗████╗ ████║
+   ██║   █████╗  ██║     ███████║█████╗  ██║  ██║██║  ███╗█████╗         ██║   █████╗  ███████║██╔████╔██║
+   ██║   ██╔══╝  ██║     ██╔══██║██╔══╝  ██║  ██║██║   ██║██╔══╝         ██║   ██╔══╝  ██╔══██║██║╚██╔╝██║
+   ██║   ███████╗╚██████╗██║  ██║███████╗██████╔╝╚██████╔╝███████╗       ██║   ███████╗██║  ██║██║ ╚═╝ ██║
+   ╚═╝   ╚══════╝ ╚═════╝╚═╝  ╚═╝╚══════╝╚═════╝  ╚═════╝ ╚══════╝       ╚═╝   ╚══════╝╚═╝  ╚═╝╚═╝     ╚═╝
+                                            ╦╔╗╔╔═╗╔═╗╦╦═╗╦╔╗╔╔═╗  ╔╦╗╦═╗╦ ╦╔═╗╔╦╗  ╔═╗╦  ╔═╗╔╗ ╔═╗╦  ╦ ╦ ╦
+                                            ║║║║╚═╗╠═╝║╠╦╝║║║║║ ╦   ║ ╠╦╝║ ║╚═╗ ║   ║ ╦║  ║ ║╠╩╗╠═╣║  ║ ╚╦╝
+                                            ╩╝╚╝╚═╝╩  ╩╩╚═╩╝╚╝╚═╝   ╩ ╩╚═╚═╝╚═╝ ╩   ╚═╝╩═╝╚═╝╚═╝╩ ╩╩═╝╩═╝╩ 
+*/
+/***** CS que crea el Shorcut de la carpeta Radicado - DGC 24/02/2020 BEGIN *****/
+
+//Cargar datos del WF y Form
+def wfstatus = workflow.getWorkflowStatus(workID, subWorkID)
+def wfattribute = wfstatus.attributes
+def wfshorcut = wfattribute.data."AccesoDirecto"
+def wfdestinatario = wfattribute.data."Destinatario"
+def form = forms.getWorkFlowFormDirect(wfstatus, "Form")
+
+//Recorrer el atributo del WF
+for(int i=0; i<wfshorcut.size(); i++){
+    //Si el atributo no se encuentra vacío
+    if(wfshorcut[i] != null){
+        try{
+            def destination = asCSNode(wfshorcut[i] as long)
+            def origin = asCSNode(form.idcarpeta.value as long)
+            def shorcut = docman.createShortcut(destination, origin.Name, origin)
+            docman.setBaseRights(shorcut, users.getUserById(wfdestinatario[i] as long), null, false)
+        }catch(e){
+            log.error("Error en la creación del shorcut", e)
+        }
+    }
+}
+/***** CS que crea el Shorcut de la carpeta Radicado - DGC 24/02/2020 END *****/
