@@ -1,0 +1,13 @@
+[LL_WEBREPORT_EXCLUDEHTML /]
+
+[LL_WEBREPORT_STARTROW /]
+    [LL_REPTAG='Radicado' CONCATVAR:Result:"|" /]
+    [LL_REPTAG='FechaRadicado' CONCATVAR:Result:"|" /]
+    [LL_REPTAG='Dependencia' CONCATVAR:Result:"|" /]
+    [LL_REPTAG='OrigenComunicado' CONCATVAR:Result:"|" /]
+    [LL_REPTAG='Asunto' CONCATVAR:Result:"|" /]
+    [LL_REPTAG='NAnexos' CONCATVAR:Result:"|" /]
+    [LL_REPTAG='IDCarpeta' CONCATVAR:Result:"|" /]
+[LL_WEBREPORT_ENDROW /]
+
+[LL_REPTAG_!Result /]
