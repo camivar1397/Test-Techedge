@@ -1,0 +1,59 @@
+/*
+████████╗███████╗ ██████╗██╗  ██╗███████╗██████╗  ██████╗ ███████╗    ████████╗███████╗ █████╗ ███╗   ███╗
+╚══██╔══╝██╔════╝██╔════╝██║  ██║██╔════╝██╔══██╗██╔════╝ ██╔════╝    ╚══██╔══╝██╔════╝██╔══██╗████╗ ████║
+   ██║   █████╗  ██║     ███████║█████╗  ██║  ██║██║  ███╗█████╗         ██║   █████╗  ███████║██╔████╔██║
+   ██║   ██╔══╝  ██║     ██╔══██║██╔══╝  ██║  ██║██║   ██║██╔══╝         ██║   ██╔══╝  ██╔══██║██║╚██╔╝██║
+   ██║   ███████╗╚██████╗██║  ██║███████╗██████╔╝╚██████╔╝███████╗       ██║   ███████╗██║  ██║██║ ╚═╝ ██║
+   ╚═╝   ╚══════╝ ╚═════╝╚═╝  ╚═╝╚══════╝╚═════╝  ╚═════╝ ╚══════╝       ╚═╝   ╚══════╝╚═╝  ╚═╝╚═╝     ╚═╝
+                                            ╦╔╗╔╔═╗╔═╗╦╦═╗╦╔╗╔╔═╗  ╔╦╗╦═╗╦ ╦╔═╗╔╦╗  ╔═╗╦  ╔═╗╔╗ ╔═╗╦  ╦ ╦ ╦
+                                            ║║║║╚═╗╠═╝║╠╦╝║║║║║ ╦   ║ ╠╦╝║ ║╚═╗ ║   ║ ╦║  ║ ║╠╩╗╠═╣║  ║ ╚╦╝
+                                            ╩╝╚╝╚═╝╩  ╩╩╚═╩╝╚╝╚═╝   ╩ ╩╚═╚═╝╚═╝ ╩   ╚═╝╩═╝╚═╝╚═╝╩ ╩╩═╝╩═╝╩ 
+*/
+/***** CS para obtener el radicado de referencia - LPA 01/04/2020 BEGIN *****/
+def radicadoRef = args[0]  
+def result = [:]
+try{
+    buscarRadicado(radicadoRef,result)  
+}catch(e){
+    result.msgdesc = "Error: " + e
+	result.msgcode = "false"
+}
+return result
+def buscarRadicado(String radicado, result){
+    def queryRadicado = """SELECT Radicado
+                           FROM Z_COR_Memorando
+                           WHERE RowSeqNum = 1 
+                           AND UPPER(Radicado) = UPPER('${radicado}')
+                           AND Estado = 'Finalizado'
+                           UNION ALL
+                           SELECT Radicado
+                           FROM Z_COR_Carta
+                           WHERE RowSeqNum = 1 
+                           AND UPPER(Radicado) = UPPER('${radicado}')
+                           AND Estado = 'Finalizado'
+                           UNION ALL
+                           SELECT Radicado
+                           FROM Z_COR_RadicacionExternos
+                           WHERE RowSeqNum = 1 
+                           AND UPPER(Radicado) = UPPER('${radicado}')
+                           AND Estado = 'Finalizado'
+                           UNION ALL
+                           SELECT Radicado
+                           FROM Z_COR_RadicacionFisica
+                           WHERE RowSeqNum = 1 
+                           AND UPPER(Radicado) = UPPER('${radicado}')
+                           AND Estado <> 'Anulado'
+                        """
+    def resultQuery = sql.runSQLFast(queryRadicado,  false,  false,  0).rows
+    if(resultQuery){
+        result.msgdesc = "Radicado Referente Obtenido"
+        result.msgcode = "true"
+        result.result = resultQuery  
+    }else{
+        result.msgdesc = "Radicado Referente No Obtenido"
+        result.msgcode = "false"
+        result.result = ''
+    }
+    
+}
+/***** CS para obtener el radicado de referencia - LPA 01/04/2020 END *****/
