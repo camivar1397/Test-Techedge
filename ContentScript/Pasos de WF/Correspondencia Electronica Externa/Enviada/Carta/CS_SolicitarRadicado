@@ -1,0 +1,73 @@
+/*
+████████╗███████╗ ██████╗██╗  ██╗███████╗██████╗  ██████╗ ███████╗    ████████╗███████╗ █████╗ ███╗   ███╗
+╚══██╔══╝██╔════╝██╔════╝██║  ██║██╔════╝██╔══██╗██╔════╝ ██╔════╝    ╚══██╔══╝██╔════╝██╔══██╗████╗ ████║
+   ██║   █████╗  ██║     ███████║█████╗  ██║  ██║██║  ███╗█████╗         ██║   █████╗  ███████║██╔████╔██║
+   ██║   ██╔══╝  ██║     ██╔══██║██╔══╝  ██║  ██║██║   ██║██╔══╝         ██║   ██╔══╝  ██╔══██║██║╚██╔╝██║
+   ██║   ███████╗╚██████╗██║  ██║███████╗██████╔╝╚██████╔╝███████╗       ██║   ███████╗██║  ██║██║ ╚═╝ ██║
+   ╚═╝   ╚══════╝ ╚═════╝╚═╝  ╚═╝╚══════╝╚═════╝  ╚═════╝ ╚══════╝       ╚═╝   ╚══════╝╚═╝  ╚═╝╚═╝     ╚═╝
+                                            ╦╔╗╔╔═╗╔═╗╦╦═╗╦╔╗╔╔═╗  ╔╦╗╦═╗╦ ╦╔═╗╔╦╗  ╔═╗╦  ╔═╗╔╗ ╔═╗╦  ╦ ╦ ╦
+                                            ║║║║╚═╗╠═╝║╠╦╝║║║║║ ╦   ║ ╠╦╝║ ║╚═╗ ║   ║ ╦║  ║ ║╠╩╗╠═╣║  ║ ╚╦╝
+                                            ╩╝╚╝╚═╝╩  ╩╩╚═╩╝╚╝╚═╝   ╩ ╩╚═╚═╝╚═╝ ╩   ╚═╝╩═╝╚═╝╚═╝╩ ╩╩═╝╩═╝╩ 
+*/
+/***** CS para solicitar radicado - LPA 10/02/2020 BEGIN *****/
+import java.text.SimpleDateFormat
+import java.util.Date
+
+//Cargar constantes
+apc = docman.getScriptByNickname("am_correspondencia_config").getCSVars()?.app
+
+//Cargar datos del WF y Form
+def WFStatus = workflow.getWorkflowStatus(workID, subWorkID)
+def WFAttachment = WFStatus.getAttachmentsFolder()
+def Anexos = docman.getNodeByName(WFAttachment, "Anexos")
+def form = forms.getWorkFlowFormDirect(WFStatus, "Form")
+int NAnexos = Anexos.getChildren().size()
+
+//Campos del Formulario
+def dependencia = runCS("${apc.subScripts.siglatovalue}", "Z_COR_Dependencias", "${form.dedependencia.value}", "Sigla", "Nombre", null).result
+def solicitante = users.getUserById(form.usuariomodificacion.value as long).displayName
+
+//Comparar si el campo del nombre destinatario se encuentra vacio 
+def destinatario 
+if(!form.parausuario.value.isEmpty()){
+    destinatario = form.parausuario.value
+}else{
+    destinatario = runCS("${apc.subScripts.siglatovalue}", "Z_COR_Empresas", "${form.paraempresa.value}", "NIT", "Nombre", null ).result
+}
+
+//Evaluar si el radicado no existe
+if(form.radicado.value.isEmpty()){
+    //Solicitar radicado
+    result = runCS("${apc.subScripts.generarradicado}", "Carta externa", "2", "ELE", "OT", "${solicitante}", "${dependencia}", "${destinatario}", "${NAnexos}", "${0}")
+
+    //Actualizar form
+    form.radicado.value = result.Radicado
+    Date fecharadicado = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS").parse("${result.Fecha}")
+    form.fecharadicado.value = fecharadicado
+    form.nanexos.value = NAnexos
+    
+    while(NAnexos>form.idanexo.size()){
+        form.idanexo.addField(form.idanexo.size())
+    }
+
+    while(NAnexos<form.idanexo.size() && form.idanexo.size()>1){
+        form.idanexo.removeField(form.idanexo.size()-1)
+    }
+
+    forms.updateWorkFlowFormDirect(WFStatus,"Form", form)
+}else{
+    //Si el radicado existe actualizar datos del formulario
+    form.nanexos.value = NAnexos
+    
+    while(NAnexos>form.idanexo.size()){
+        form.idanexo.addField(form.idanexo.size())
+    }
+
+    while(NAnexos<form.idanexo.size() && form.idanexo.size()>1){
+        form.idanexo.removeField(form.idanexo.size()-1)
+    }
+    
+    forms.updateWorkFlowFormDirect(WFStatus,"Form", form)
+}
+/***** CS para solicitar radicado - LPA 10/02/2020 END *****/
+
