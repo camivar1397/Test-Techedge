@@ -1,0 +1,7 @@
+[LL_WEBREPORT_EXCLUDEHTML /]
+
+<SELECT class="form-control select2" type="text" name="respeticion" id="respeticion">
+    <OPTION VALUE="" >-</OPTION>
+    <OPTION VALUE="1">Si</OPTION>
+    <OPTION VALUE="0">No</OPTION>
+</SELECT>
