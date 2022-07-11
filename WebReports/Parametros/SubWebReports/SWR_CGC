@@ -1,0 +1,19 @@
+[LL_WEBREPORT_FORCEUTF8 /]
+<table border="1">
+    <tr>
+        <th>Nombre</th>
+        <th>Ciudad</th>
+        <th>Código CGC</th>
+        <th>Orden</th>
+    </tr>
+    
+[LL_WEBREPORT_STARTROW /]
+    <tr>
+        <td>[LL_REPTAG='Nombre' /]</td>
+        <td>[LL_REPTAG='CiudadSigla' /]</td>
+        <td>[LL_REPTAG='CodigoCGC' /]</td>
+        <td>[LL_REPTAG='Orden' DECODE:?:'' /]</td>
+    </tr>
+[LL_WEBREPORT_ENDROW /]
+</table>
+
