@@ -1,0 +1,75 @@
+/*
+████████╗███████╗ ██████╗██╗  ██╗███████╗██████╗  ██████╗ ███████╗    ████████╗███████╗ █████╗ ███╗   ███╗
+╚══██╔══╝██╔════╝██╔════╝██║  ██║██╔════╝██╔══██╗██╔════╝ ██╔════╝    ╚══██╔══╝██╔════╝██╔══██╗████╗ ████║
+   ██║   █████╗  ██║     ███████║█████╗  ██║  ██║██║  ███╗█████╗         ██║   █████╗  ███████║██╔████╔██║
+   ██║   ██╔══╝  ██║     ██╔══██║██╔══╝  ██║  ██║██║   ██║██╔══╝         ██║   ██╔══╝  ██╔══██║██║╚██╔╝██║
+   ██║   ███████╗╚██████╗██║  ██║███████╗██████╔╝╚██████╔╝███████╗       ██║   ███████╗██║  ██║██║ ╚═╝ ██║
+   ╚═╝   ╚══════╝ ╚═════╝╚═╝  ╚═╝╚══════╝╚═════╝  ╚═════╝ ╚══════╝       ╚═╝   ╚══════╝╚═╝  ╚═╝╚═╝     ╚═╝
+                                            ╦╔╗╔╔═╗╔═╗╦╦═╗╦╔╗╔╔═╗  ╔╦╗╦═╗╦ ╦╔═╗╔╦╗  ╔═╗╦  ╔═╗╔╗ ╔═╗╦  ╦ ╦ ╦
+                                            ║║║║╚═╗╠═╝║╠╦╝║║║║║ ╦   ║ ╠╦╝║ ║╚═╗ ║   ║ ╦║  ║ ║╠╩╗╠═╣║  ║ ╚╦╝
+                                            ╩╝╚╝╚═╝╩  ╩╩╚═╩╝╚╝╚═╝   ╩ ╩╚═╚═╝╚═╝ ╩   ╚═╝╩═╝╚═╝╚═╝╩ ╩╩═╝╩═╝╩ 
+*/
+/***** Busca todos los usuario de un grupo - DGC 07/01/2020 BEGIN *****/
+
+/*
+	Utility function to find an entry by ID in the database.
+*/
+def getByID(String id) {    
+    def sqlCode = """SELECT ID, CONCAT(FirstName,' ',LastName) AS Nombre,
+                     Name AS Registro
+                     FROM KUAF
+                     WHERE ID = ${id}
+                  """
+    Boolean cursorEnabled = false 
+    Boolean transactionEnabled = false
+    Integer recordLimit = 1
+    def result = sql.runSQLFast(sqlCode,  cursorEnabled,  transactionEnabled,  recordLimit).rows.collect{
+          [ id:it.ID, text:it.Nombre, desc:it.Registro, image:"${img}empty.gif" ]
+    }
+    
+    if(result){    
+        return result[0]
+    }
+    else{
+        return []
+    }
+}
+
+/*
+	Utility function to find entries in the database.
+*/
+def getAll(String searchTerm, String groupName) {
+    String cond1 = ""
+    if(searchTerm){
+        cond1 = "WHERE UPPER(Nombre) LIKE UPPER('%${searchTerm}%') OR UPPER(Registro) LIKE UPPER('%${searchTerm}%')"
+    }
+    
+    def sqlCode = """SELECT ID, Nombre, Registro
+                     FROM Z_FN_COR_UsersinGroup('${groupName}')
+                     ${cond1}
+                     ORDER BY Nombre
+                  """
+    
+    Boolean cursorEnabled = false 
+    Boolean transactionEnabled = false
+    Integer recordLimit = 1
+    def result = sql.runSQLFast(sqlCode,  cursorEnabled,  transactionEnabled,  recordLimit).rows.collect{
+        [ id:it.ID, text:it.Nombre , desc:it.Registro, image:"${img}empty.gif" ]}
+    return result
+}
+
+/*
+	Main code
+*/
+try{
+    if(params.id){
+    	result = getByID(params.id)
+    }else{
+        result = getAll(params.term, params.groupName)
+    }
+    //return result
+    json(result)
+}catch(e){
+    log.error("Error en Busqueda de Usuario en REST service.", e)
+}
+/***** Busca todos los usuario de un grupo - DGC 07/01/2020 END *****/
