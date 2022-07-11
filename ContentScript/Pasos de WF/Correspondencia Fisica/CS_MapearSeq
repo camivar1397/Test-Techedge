@@ -1,0 +1,58 @@
+/*
+████████╗███████╗ ██████╗██╗  ██╗███████╗██████╗  ██████╗ ███████╗    ████████╗███████╗ █████╗ ███╗   ███╗
+╚══██╔══╝██╔════╝██╔════╝██║  ██║██╔════╝██╔══██╗██╔════╝ ██╔════╝    ╚══██╔══╝██╔════╝██╔══██╗████╗ ████║
+   ██║   █████╗  ██║     ███████║█████╗  ██║  ██║██║  ███╗█████╗         ██║   █████╗  ███████║██╔████╔██║
+   ██║   ██╔══╝  ██║     ██╔══██║██╔══╝  ██║  ██║██║   ██║██╔══╝         ██║   ██╔══╝  ██╔══██║██║╚██╔╝██║
+   ██║   ███████╗╚██████╗██║  ██║███████╗██████╔╝╚██████╔╝███████╗       ██║   ███████╗██║  ██║██║ ╚═╝ ██║
+   ╚═╝   ╚══════╝ ╚═════╝╚═╝  ╚═╝╚══════╝╚═════╝  ╚═════╝ ╚══════╝       ╚═╝   ╚══════╝╚═╝  ╚═╝╚═╝     ╚═╝
+                                            ╦╔╗╔╔═╗╔═╗╦╦═╗╦╔╗╔╔═╗  ╔╦╗╦═╗╦ ╦╔═╗╔╦╗  ╔═╗╦  ╔═╗╔╗ ╔═╗╦  ╦ ╦ ╦
+                                            ║║║║╚═╗╠═╝║╠╦╝║║║║║ ╦   ║ ╠╦╝║ ║╚═╗ ║   ║ ╦║  ║ ║╠╩╗╠═╣║  ║ ╚╦╝
+                                            ╩╝╚╝╚═╝╩  ╩╩╚═╩╝╚╝╚═╝   ╩ ╩╚═╚═╝╚═╝ ╩   ╚═╝╩═╝╚═╝╚═╝╩ ╩╩═╝╩═╝╩ 
+*/
+/***** CS para mapear el seq al WF - DGC 28/09/2020 BEGIN *****/
+
+//Definicion de constantes
+wfstatus = workflow.getWorkflowStatus(workID, subWorkID)
+wfattr = wfstatus.attributes
+form = forms.getWorkFlowFormDirect(wfstatus, "Form")
+
+/***************************Main Code***************************/
+try{
+    
+    //Validar seq
+    wfseq = getSeq()
+    wfattr.data.Seq = wfseq.toString()
+    
+    //Actualizar el WF
+    wfstatus.updateData()
+    
+}catch(e){
+    log.error("Error en la ejecucion del mapeo de seq", e)
+}
+/***************************Main Code***************************/
+
+/***************************Funciones***************************/
+//Obtener seq del registro guardado
+def getSeq(){
+    
+    def query = """SELECT TOP 1 Seq
+                   FROM Z_COR_RadicacionFisica
+                   WHERE RowSeqNum = 1
+                   AND OrigenComunicado = '${form.origencomunicado.value}'
+                   AND UsuarioRadicador = ${form.usuarioradicador.value}
+                   AND CGC = '${form.cgc.value}'
+                   AND Radicado = '${form.radicado.value}'
+                   ORDER BY FechaModificacion DESC
+                """
+    
+    def result = sql.runSQLFast(query, false, false, 0).rows
+    
+    if(result.size() > 0){
+        return result[0].Seq
+    }else{
+        return null
+    }
+}
+/***************************Funciones***************************/
+
+/***** CS para mapear el seq al WF - DGC 28/09/2020 END *****/
