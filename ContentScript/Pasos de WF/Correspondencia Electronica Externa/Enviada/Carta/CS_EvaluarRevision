@@ -1,0 +1,33 @@
+/*
+████████╗███████╗ ██████╗██╗  ██╗███████╗██████╗  ██████╗ ███████╗    ████████╗███████╗ █████╗ ███╗   ███╗
+╚══██╔══╝██╔════╝██╔════╝██║  ██║██╔════╝██╔══██╗██╔════╝ ██╔════╝    ╚══██╔══╝██╔════╝██╔══██╗████╗ ████║
+   ██║   █████╗  ██║     ███████║█████╗  ██║  ██║██║  ███╗█████╗         ██║   █████╗  ███████║██╔████╔██║
+   ██║   ██╔══╝  ██║     ██╔══██║██╔══╝  ██║  ██║██║   ██║██╔══╝         ██║   ██╔══╝  ██╔══██║██║╚██╔╝██║
+   ██║   ███████╗╚██████╗██║  ██║███████╗██████╔╝╚██████╔╝███████╗       ██║   ███████╗██║  ██║██║ ╚═╝ ██║
+   ╚═╝   ╚══════╝ ╚═════╝╚═╝  ╚═╝╚══════╝╚═════╝  ╚═════╝ ╚══════╝       ╚═╝   ╚══════╝╚═╝  ╚═╝╚═╝     ╚═╝
+                                            ╦╔╗╔╔═╗╔═╗╦╦═╗╦╔╗╔╔═╗  ╔╦╗╦═╗╦ ╦╔═╗╔╦╗  ╔═╗╦  ╔═╗╔╗ ╔═╗╦  ╦ ╦ ╦
+                                            ║║║║╚═╗╠═╝║╠╦╝║║║║║ ╦   ║ ╠╦╝║ ║╚═╗ ║   ║ ╦║  ║ ║╠╩╗╠═╣║  ║ ╚╦╝
+                                            ╩╝╚╝╚═╝╩  ╩╩╚═╩╝╚╝╚═╝   ╩ ╩╚═╚═╝╚═╝ ╩   ╚═╝╩═╝╚═╝╚═╝╩ ╩╩═╝╩═╝╩ 
+*/
+/***** CS para evaluar el caso de revisión del WF - LPA 10/02/2020 BEGIN *****/
+def WFStatus = workflow.getWorkflowStatus(workID, subWorkID)
+def form = forms.getWorkFlowFormDirect(WFStatus, "Form")
+
+boolean flag = false
+for(int i=0; i<form.revisor.size(); i++){
+    if(form.revisor[i].estado.value == "Rechazado"){
+        flag = true
+        break
+    }
+}
+
+if(flag){
+    form.estado.value = "Edición"
+    forms.updateWorkFlowFormDirect(WFStatus, "Form", form)
+    return "Error"     
+}else{
+    form.estado.value = "Aprobación"
+    forms.updateWorkFlowFormDirect(WFStatus, "Form", form)
+    return "Success"
+}
+/***** CS para evaluar el caso de revisión del WF - LPA 10/02/2020 END *****/
