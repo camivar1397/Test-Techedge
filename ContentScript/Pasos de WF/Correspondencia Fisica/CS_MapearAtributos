@@ -1,0 +1,58 @@
+/*
+████████╗███████╗ ██████╗██╗  ██╗███████╗██████╗  ██████╗ ███████╗    ████████╗███████╗ █████╗ ███╗   ███╗
+╚══██╔══╝██╔════╝██╔════╝██║  ██║██╔════╝██╔══██╗██╔════╝ ██╔════╝    ╚══██╔══╝██╔════╝██╔══██╗████╗ ████║
+   ██║   █████╗  ██║     ███████║█████╗  ██║  ██║██║  ███╗█████╗         ██║   █████╗  ███████║██╔████╔██║
+   ██║   ██╔══╝  ██║     ██╔══██║██╔══╝  ██║  ██║██║   ██║██╔══╝         ██║   ██╔══╝  ██╔══██║██║╚██╔╝██║
+   ██║   ███████╗╚██████╗██║  ██║███████╗██████╔╝╚██████╔╝███████╗       ██║   ███████╗██║  ██║██║ ╚═╝ ██║
+   ╚═╝   ╚══════╝ ╚═════╝╚═╝  ╚═╝╚══════╝╚═════╝  ╚═════╝ ╚══════╝       ╚═╝   ╚══════╝╚═╝  ╚═╝╚═╝     ╚═╝
+                                            ╦╔╗╔╔═╗╔═╗╦╦═╗╦╔╗╔╔═╗  ╔╦╗╦═╗╦ ╦╔═╗╔╦╗  ╔═╗╦  ╔═╗╔╗ ╔═╗╦  ╦ ╦ ╦
+                                            ║║║║╚═╗╠═╝║╠╦╝║║║║║ ╦   ║ ╠╦╝║ ║╚═╗ ║   ║ ╦║  ║ ║╠╩╗╠═╣║  ║ ╚╦╝
+                                            ╩╝╚╝╚═╝╩  ╩╩╚═╩╝╚╝╚═╝   ╩ ╩╚═╚═╝╚═╝ ╩   ╚═╝╩═╝╚═╝╚═╝╩ ╩╩═╝╩═╝╩ 
+*/
+/***** CS para mapear los atributos al WF - DGC 25/09/2020 BEGIN *****/
+
+//Definicion de constantes
+APC = docman.getScriptByNickname("am_correspondencia_config").getCSVars()?.app
+wfstatus = workflow.getWorkflowStatus(workID, subWorkID)
+wfattachment = wfstatus.attachments
+wfattr = wfstatus.attributes
+form = forms.getWorkFlowFormDirect(wfstatus, "Form")
+
+/***************************Main Code***************************/
+try{
+    
+    //Crear shorcut carpeta radicado
+    folder = docman.getFolder(form.idcarpeta.value as long)
+    docman.createShortcut(wfattachment, folder.name, folder)
+    
+    //Validar CGC
+    wfCGC = getCGCGroup()
+    wfattr.data.CGC = wfCGC.toString()
+    
+    //Validar delegados
+    if(!form.paradelegadoint.value.isEmpty()){
+        wfattr.data.Destinatario = form.paradelegadoint.value
+        wfattr.data."Dependencia destino" = form.paradelegadodep.value
+    }else{
+        wfattr.data.Destinatario = form.parausuarioint.value
+        wfattr.data."Dependencia destino" = form.paradependencia.value
+    }
+    
+    //Actualizar el WF
+    wfstatus.updateData()
+    
+}catch(e){
+    log.error("Error en la ejecucion del mapeo de atributos", e)
+}
+/***************************Main Code***************************/
+
+/***************************Funciones***************************/
+
+//Obtener el grupo del cgc radicador
+def getCGCGroup(){  
+    return runCS("${APC.subScripts.siglatovalue}", "Z_COR_CGC", "${form.cgc.value}", "CodigoCGC", "GrupoCGC", "").result
+}
+/***************************Funciones***************************/
+
+/***** CS para mapear los atributos al WF - DGC 25/09/2020 END *****/
+
