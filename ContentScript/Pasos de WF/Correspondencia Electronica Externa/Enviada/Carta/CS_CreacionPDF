@@ -1,0 +1,111 @@
+/*
+████████╗███████╗ ██████╗██╗  ██╗███████╗██████╗  ██████╗ ███████╗    ████████╗███████╗ █████╗ ███╗   ███╗
+╚══██╔══╝██╔════╝██╔════╝██║  ██║██╔════╝██╔══██╗██╔════╝ ██╔════╝    ╚══██╔══╝██╔════╝██╔══██╗████╗ ████║
+   ██║   █████╗  ██║     ███████║█████╗  ██║  ██║██║  ███╗█████╗         ██║   █████╗  ███████║██╔████╔██║
+   ██║   ██╔══╝  ██║     ██╔══██║██╔══╝  ██║  ██║██║   ██║██╔══╝         ██║   ██╔══╝  ██╔══██║██║╚██╔╝██║
+   ██║   ███████╗╚██████╗██║  ██║███████╗██████╔╝╚██████╔╝███████╗       ██║   ███████╗██║  ██║██║ ╚═╝ ██║
+   ╚═╝   ╚══════╝ ╚═════╝╚═╝  ╚═╝╚══════╝╚═════╝  ╚═════╝ ╚══════╝       ╚═╝   ╚══════╝╚═╝  ╚═╝╚═╝     ╚═╝
+                                            ╦╔╗╔╔═╗╔═╗╦╦═╗╦╔╗╔╔═╗  ╔╦╗╦═╗╦ ╦╔═╗╔╦╗  ╔═╗╦  ╔═╗╔╗ ╔═╗╦  ╦ ╦ ╦
+                                            ║║║║╚═╗╠═╝║╠╦╝║║║║║ ╦   ║ ╠╦╝║ ║╚═╗ ║   ║ ╦║  ║ ║╠╩╗╠═╣║  ║ ╚╦╝
+                                            ╩╝╚╝╚═╝╩  ╩╩╚═╩╝╚╝╚═╝   ╩ ╩╚═╚═╝╚═╝ ╩   ╚═╝╩═╝╚═╝╚═╝╩ ╩╩═╝╩═╝╩ 
+*/
+/***** CS que genera el PDF - LPA 06/02/2020 BEGIN *****/
+def wfstatus = workflow.getWorkflowStatus(workID, subWorkID)
+def wfattachments = wfstatus.getAttachmentsFolder()
+def form = forms.getWorkFlowFormDirect(wfstatus, "Form")
+
+//Cargar APP de este OnLoad
+app = csvars.app
+
+//Cargar APP del proceso
+apc = docman.getScriptByNickname("am_correspondencia_config").getCSVars()?.app
+
+//Ejecutar query campos Conf
+def conf = sql.runSQLFast(app.querys.conf , false, false, 0).rows.collectEntries{[(it.Sigla):it.DescripcionLarga]}
+
+//Precargar datos
+form.viewParams.title = conf.get("TCAR")
+form.viewParams.mostrarRadicado = "block"
+
+//Precargar select from viewParams
+form.viewParams.protocolo = sql.runSQLFast(app.querys.prot , false, false, 0).rows.collect{[label:it.DescripcionLarga,value:it.Sigla]}
+
+// Llenar viweparams barcode
+form.viewParams.radicado = form.radicado.value
+form.viewParams.fechaRadicado = form.fecharadicado.valueAsDate.format('dd/MM/yyyy hh:mm a')
+form.viewParams.dependencia = runCS("${apc.subScripts.siglatovalue}", "Z_COR_Dependencias", "${form.dedependencia.value}", "Sigla", "Nombre", null ).result
+//form.viewParams.anexos = form.nanexos.value
+
+form.viewParams.ciudadRad = runCS("${apc.subScripts.siglatovalue}", "Z_COR_Municipios", "${form.ciudad.value}", "Seq", "Ciudad", null ).result
+
+form.viewParams.ciudadPara = runCS("${apc.subScripts.siglatovalue}", "Z_COR_Municipios", "${form.paraciudad.value}", "Seq", "Ciudad", null ).result
+
+form.viewParams.empresaPara = runCS("${apc.subScripts.siglatovalue}", "Z_COR_Empresas", "${form.paraempresa.value}", "NIT", "Nombre", null ).result
+
+form.viewParams.destino = form.parausuario.value.isEmpty() ? form.viewParams.empresaPara : form.parausuario.value
+
+String redaccion = users.getUserById(form.usuariomodificacion.value as long).firstName.charAt(0).toUpperCase()
+redaccion += users.getUserById(form.usuariomodificacion.value as long).lastName.charAt(0).toUpperCase()
+form.viewParams.userredaccion = redaccion
+
+String dedept = runCS("${apc.subScripts.siglatovalue}", "Z_COR_Dependencias", "${form.dependencia.value}", "Sigla", "Nombre", null ).result
+form.viewParams.dependenciaint = dedept
+
+sourceFile = forms.createRendableForm(form, asCSNode(apc.views.letter))
+log.error("sourceFile1= "+sourceFile)
+sourceFile = rend.htmlToPdf(sourceFile, [:], """-B 31 -T 28 -L 21 -R 14 --viewport-size 1757x1240 \${source} --cookie \${cookie} \${destination}  """)
+//--footer-html "https://co-explorationlab.r53.techedgegroup.com/OTCS/llisapi.dll/fetch/2457/1563155/1564762/1852857/-/footer.html?nodeid=1853187" 
+log.error("sourceFile2= "+sourceFile)
+log.error("form.radicado.value= "+form.radicado.value)
+sourceFile.name ="${form.radicado.value}.pdf"
+log.error("sourceFile.name= "+sourceFile.name)
+/*https://co-explorationlab.r53.techedgegroup.com/OTCS/llisapi.dll/fetch/2457/1563155/1564762/1852857/-/footer.html?nodeid=1853187 URL del template del footer en exploration lab, este no es obligatorio*/
+
+try{
+    res =  pdf.addBarcode(sourceFile.content,"CODE_128", "${form.radicado.value}", 1, 13, 46, 180, 30)
+    res.name = sourceFile.name
+    try{
+        //Crear el PDF en los adjuntos de WF
+        docman.createDocument(wfattachments, res.name, res.content)
+    }catch(e){
+        //Si el PDF ya existe, agregar una version
+        def doc = docman.getNodeByName(wfattachments, res.name)
+        doc != null ? docman.addVersion(doc, res.content) : log.error("Error al crear el PDF carta ${res.name}: " + e)
+    }
+
+}catch(e){
+    log.error("No se puede aplicar el código de barras a la carta ${sourceFile.name}", e)
+}
+
+//Agregar marca de agua
+try{
+    log.error("conf= "+form.confidencial.value)
+    if(form.confidencial.value == "true"){
+        res.name = sourceFile.name
+        def doc = docman.getNodeByName(wfattachments, res.name)
+        watermark = pdf.waterMark().content("CONFIDENCIAL").fontSize(90).color("BLACK")
+        pdf.addWaterMark(doc, watermark)
+        docman.addVersion(doc, doc.content)
+    }    
+    
+}catch(e){
+    log.error("No se puede agregar la marca de agua al PDF ${sourceFile.name}", e)
+}
+//Actualizar el estado del Form
+form.estado.value = "Aprobación"
+forms.updateWorkFlowFormDirect(wfstatus, "Form", form)
+/***** CS que genera el PDF - LPA 06/02/2020 END *****/
+
+
+
+
+
+
+
+
+
+
+
+
+
+
