@@ -1,0 +1,123 @@
+/*
+████████╗███████╗ ██████╗██╗  ██╗███████╗██████╗  ██████╗ ███████╗    ████████╗███████╗ █████╗ ███╗   ███╗
+╚══██╔══╝██╔════╝██╔════╝██║  ██║██╔════╝██╔══██╗██╔════╝ ██╔════╝    ╚══██╔══╝██╔════╝██╔══██╗████╗ ████║
+   ██║   █████╗  ██║     ███████║█████╗  ██║  ██║██║  ███╗█████╗         ██║   █████╗  ███████║██╔████╔██║
+   ██║   ██╔══╝  ██║     ██╔══██║██╔══╝  ██║  ██║██║   ██║██╔══╝         ██║   ██╔══╝  ██╔══██║██║╚██╔╝██║
+   ██║   ███████╗╚██████╗██║  ██║███████╗██████╔╝╚██████╔╝███████╗       ██║   ███████╗██║  ██║██║ ╚═╝ ██║
+   ╚═╝   ╚══════╝ ╚═════╝╚═╝  ╚═╝╚══════╝╚═════╝  ╚═════╝ ╚══════╝       ╚═╝   ╚══════╝╚═╝  ╚═╝╚═╝     ╚═╝
+                                            ╦╔╗╔╔═╗╔═╗╦╦═╗╦╔╗╔╔═╗  ╔╦╗╦═╗╦ ╦╔═╗╔╦╗  ╔═╗╦  ╔═╗╔╗ ╔═╗╦  ╦ ╦ ╦
+                                            ║║║║╚═╗╠═╝║╠╦╝║║║║║ ╦   ║ ╠╦╝║ ║╚═╗ ║   ║ ╦║  ║ ║╠╩╗╠═╣║  ║ ╚╦╝
+                                            ╩╝╚╝╚═╝╩  ╩╩╚═╩╝╚╝╚═╝   ╩ ╩╚═╚═╝╚═╝ ╩   ╚═╝╩═╝╚═╝╚═╝╩ ╩╩═╝╩═╝╩ 
+*/
+
+/***** Subscript que retorna los días hábiles entre dos fechas - JHMM 19/02/2020 BEGIN *****/
+
+//variables con los parametros de entrada yyyy-MM-dd
+def fecha1 = args[0] // fecha1 = "2019-08-05"
+def fecha2  = args[1] // fecha2 = "2019-08-13"
+
+def result = [:]
+
+date1 = new Date().parse('yyyy-MM-dd', fecha1)
+date2 = new Date().parse('yyyy-MM-dd', fecha2)
+
+year1 = date1[Calendar.YEAR]
+year2 = date2[Calendar.YEAR]
+
+def weekends = 0
+def holidays = 0
+def totaldays = 0
+
+totaldays = (int) ((date2.getTime()-date1.getTime())/86400000)
+
+weekends = getWeekends(date1, date2)
+
+if(year1 == year2){
+    def listHolydays = getHolidaysYear(year1)
+    holidays = getHolydaysTwoDates(listHolydays, date1, date2)
+} else {
+    def daysTotal = 0
+    def listHolydays = getHolidaysYear(year1)
+    def listHolydays2 = getHolidaysYear(year2)
+    
+    
+    holidays = getHolydaysTwoDates(listHolydays, date1, date2)
+    holidays = holidays + getHolydaysTwoDates(listHolydays2, date1, date2)
+}
+
+totaldays = totaldays - (holidays + weekends)
+
+result.result = totaldays
+return result
+
+//**************************************** Funciones ****************************************//
+
+//*** Función que devuelve lista de los festivos de un año
+def getHolidaysYear(Integer year){
+    app = csvars.app
+    def conf = sql.runSQLFast(app.querys.conf , false, false, 0).rows.collectEntries{[(it.Sigla):it.DescripcionLarga]}
+
+    try{
+        def request = csws.registerRESTClient("holidays", "${conf.get("FST")}" + year).get()
+        def hlds = request.getContentAsString()
+    
+        def jsonSlurper = new JsonSlurper()
+        def obj = jsonSlurper.parseText(hlds)
+
+        assert obj instanceof List
+        assert obj[0] instanceof List
+        assert obj[0][1] instanceof String
+        
+        return obj
+
+    }catch(e){
+        log.error("Error in CS Festivos", e)
+    }
+}
+
+//*** Función que devuelve los festivos entre dos fechas
+def getHolydaysTwoDates(List listh, Date d1, Date d2){
+    int holydays = 0
+    int days = 0
+    
+    for(d = 0 ; d < listh.size(); d++ ){
+        holyday = new Date().parse('yyyy-MM-dd', "${listh[d][0].toString()}")
+        if(d1 < holyday && d2 > holyday && listh[d][1] != "San Pedro y San Pablo"){
+            if(!isWeekend(holyday)){
+               holydays++
+            }
+        }
+    }
+    return holydays
+}
+
+
+//*** Función que devuelve los fines de semana entre dos fechas
+def getWeekends(Date date1, Date date2) {
+    
+    Calendar c1 = Calendar.getInstance()
+    c1.setTime(date1)
+    
+    Calendar c2 = Calendar.getInstance()
+    c2.setTime(date2)
+    
+    int diffDays= 0;
+    if(c1.before(c2) || c1.equals(c2)){
+        while (c1.before(c2) || c1.equals(c2)) {
+            if (isWeekend(c1.getTime())) {
+                diffDays++
+            }
+            c1.add(Calendar.DATE, 1)
+        }
+    }
+    return diffDays;
+}
+
+def isWeekend(Date date){
+    def day = date[Calendar.DAY_OF_WEEK]
+    if(day == 1 || day == 7){
+        return true
+    } else {
+        return false
+    }
+}
