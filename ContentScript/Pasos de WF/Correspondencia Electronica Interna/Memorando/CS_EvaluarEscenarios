@@ -1,0 +1,101 @@
+/*
+████████╗███████╗ ██████╗██╗  ██╗███████╗██████╗  ██████╗ ███████╗    ████████╗███████╗ █████╗ ███╗   ███╗
+╚══██╔══╝██╔════╝██╔════╝██║  ██║██╔════╝██╔══██╗██╔════╝ ██╔════╝    ╚══██╔══╝██╔════╝██╔══██╗████╗ ████║
+   ██║   █████╗  ██║     ███████║█████╗  ██║  ██║██║  ███╗█████╗         ██║   █████╗  ███████║██╔████╔██║
+   ██║   ██╔══╝  ██║     ██╔══██║██╔══╝  ██║  ██║██║   ██║██╔══╝         ██║   ██╔══╝  ██╔══██║██║╚██╔╝██║
+   ██║   ███████╗╚██████╗██║  ██║███████╗██████╔╝╚██████╔╝███████╗       ██║   ███████╗██║  ██║██║ ╚═╝ ██║
+   ╚═╝   ╚══════╝ ╚═════╝╚═╝  ╚═╝╚══════╝╚═════╝  ╚═════╝ ╚══════╝       ╚═╝   ╚══════╝╚═╝  ╚═╝╚═╝     ╚═╝
+                                            ╦╔╗╔╔═╗╔═╗╦╦═╗╦╔╗╔╔═╗  ╔╦╗╦═╗╦ ╦╔═╗╔╦╗  ╔═╗╦  ╔═╗╔╗ ╔═╗╦  ╦ ╦ ╦
+                                            ║║║║╚═╗╠═╝║╠╦╝║║║║║ ╦   ║ ╠╦╝║ ║╚═╗ ║   ║ ╦║  ║ ║╠╩╗╠═╣║  ║ ╚╦╝
+                                            ╩╝╚╝╚═╝╩  ╩╩╚═╩╝╚╝╚═╝   ╩ ╩╚═╚═╝╚═╝ ╩   ╚═╝╩═╝╚═╝╚═╝╩ ╩╩═╝╩═╝╩ 
+*/
+/***** CS para evaluar el caso de solicitud y mapear atributos del WF - DGC 15/01/2020 BEGIN *****/
+
+//Obtener datos del WF y el Form
+def WFStatus = workflow.getWorkflowStatus(workID, subWorkID)
+def WFAttributes = WFStatus.getAttributes()
+def form = forms.getWorkFlowFormDirect(WFStatus, "Form")
+def WFAtRev = WFAttributes.data."Revisor"
+def WFAtDest = WFAttributes.data."Destinatario"
+def WFAtCop = WFAttributes.data."Copia"
+def conCopia = []
+
+//Limpiar Revisores
+for(int i=0; i<WFAtRev.size(); i++){
+    WFAtRev[i] = null
+    WFStatus.updateData()
+}
+
+//Limpiar Destinatarios
+for(int i=0; i<WFAtDest.size(); i++){
+    WFAtDest[i] = null
+    WFStatus.updateData()
+}
+
+//Limpiar Copiados
+for(int i=0; i<WFAtCop.size(); i++){
+    WFAtCop[i] = null
+    WFStatus.updateData()
+}
+
+//Mapear usuarios destinatarios al atributo del WF
+for(int i=0; i<form.para.usuario.size(); i++){
+    WFAtDest[i] = form.para[i].usuario.value as long
+    WFStatus.updateData()
+}
+
+//Mapear usuarios copia al atributo del WF
+for(int i=0; i<form.cc.size(); i++){
+    if(!form.cc[i].value.isEmpty()){
+        conCopia.add(users.getUserById(form.cc[i].value as long).email)
+    }
+}
+
+def query = """SELECT 
+               (SELECT STRING_AGG (k.MailAddress, ';')  
+                FROM Z_COR_Excepciones e
+                INNER JOIN KUAF k ON  k.ID=e.Destinatario
+                WHERE e.Seq = ex.Seq) AS 'Destinatario',
+               ex.Correo
+               FROM Z_COR_Excepciones ex
+               WHERE ex.Activo = 1 AND ex.RowSeqNum=1
+               AND ex.Excepciones = '${form.categoriaasunto.value}'
+            """
+
+def mails = sql.runSQLFast(query, false, false, 1).rows
+if(mails.size() > 0 && mails.get(0).get("Destinatario") != null){
+    def correo = mails.get(0).get("Destinatario").split(";")
+    for(int i=0; i<correo.size(); i++){
+        conCopia.add(correo[i])
+    }
+}
+
+if(mails.size() > 0 && mails.get(0).get("Correo") != null){
+    def correo = mails.get(0).get("Correo").split(";")
+    for(int i=0; i<correo.size(); i++){
+        conCopia.add(correo[i])
+    }
+}
+
+//Mapear usuarios en copia al atributo del WF
+conCopia = conCopia.unique()
+for(int i=0; i<conCopia.size(); i++){
+    WFAtCop[i] = conCopia[i] 
+    WFStatus.updateData()
+}
+
+//Mapear usuarios revisores al atributo del WF
+if(form.revisor.size() == 1 && form.revisor[0].usuario.value.isEmpty()){
+    form.estado.value = "Aprobación"
+    forms.updateWorkFlowFormDirect(WFStatus, "Form", form)
+    return "Error"
+}else{
+	for(int i=0; i<form.revisor.size(); i++){
+        WFAtRev[i] = form.revisor[i].usuario.value as long
+        WFStatus.updateData()
+	}
+    form.estado.value = "Revisión"
+    forms.updateWorkFlowFormDirect(WFStatus, "Form", form)
+    return "Success"
+}
+/***** CS para evaluar el caso de solicitud y mapear atributos del WF - DGC 15/01/2020 END *****/
