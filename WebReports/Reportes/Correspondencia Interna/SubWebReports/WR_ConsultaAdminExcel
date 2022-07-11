@@ -1,0 +1,115 @@
+[LL_WEBREPORT_FORCEUTF8 /]
+
+<table id="myTable" class="table table-hover display dt-responsive" style="width:100%" border="1">
+    <thead>
+        <tr>
+            <th>N°</th>
+            <th>Estado</th>
+            <th>Asunto</th>
+            <th>Radicado</th>
+            <th>Fecha radicado</th>
+            <th>Remitente(s)</th>
+            <th>Dependencia(s) remitente(s)</th>
+            <th>CECO</th>
+            <th>Destinatario(s)</th>
+            <th>Dependencia(s) Destinatario(s)</th>
+            <th>N° anexos</th>
+            <th>Caso personal</th>
+            <th>Radicado(s) de referencia</th>
+            <th>Confidencial</th>
+            <th>Categoria asunto</th>
+            <th>Medio</th>
+            <th>Tipo de envío</th>
+            <th>Radicado de contingencia</th>
+        </tr>
+    </thead>
+    <tbody>
+        [LL_WEBREPORT_STARTROW /]
+        <tr>
+            <td>
+                [LL_REPTAG_ROWNUM /]
+            </td>
+           
+            [LL_WEBREPORT_IF "[LL_REPTAG='Medio' /]" == "F&iacute;sico" && "[LL_REPTAG='TipoDistribucion' /]" != "Distribuci&oacute;n electr&oacute;nica" /]
+                <td>[LL_REPTAG='Estado' /]</td>
+            [LL_WEBREPORT_ELSE /]
+                <td>
+                    <a href="[LL_REPTAG_URLPREFIXFULL /][LL_REPTAG='ID' LLURL:WFDEFAULTLINK /]" target="_BLANK">
+                        <span class="glyphicon glyphicon-pencil"></span> [LL_REPTAG='Estado' /]
+                    </a>
+                </td>
+            [LL_WEBREPORT_ENDIF /]
+            
+            <td>[LL_REPTAG='Asunto' /]</td>
+            [LL_WEBREPORT_IF "[LL_REPTAG='IDCarpeta' /]" == "?" /]
+                <td>[LL_REPTAG='Radicado' DECODE:?:' ' /]</td>
+            [LL_WEBREPORT_ELSE /]
+                <td>
+                    <a href="[LL_REPTAG_URLPREFIXFULL /][LL_REPTAG='IDCarpeta' LLURL:BROWSE /]" target="_BLANK">
+                        [LL_REPTAG='Radicado' /]
+                    </a>
+                </td>
+            [LL_WEBREPORT_ENDIF /]
+            <td>
+                [LL_WEBREPORT_IF "[LL_REPTAG='FechaRadicado' /]" == "?" /]
+                
+                [LL_WEBREPORT_ELSE /]
+                    [LL_REPTAG='FechaRadicado' DATE:"%d/%m/%Y %I:%M %p" /]
+                [LL_WEBREPORT_ENDIF /]
+            </td>
+            <td>
+                [LL_WEBREPORT_FOR DATA:[LL_REPTAG='Remitente' TOLIST:',' /] VAR:Rem /]
+                    [LL_REPTAG_%Rem CURRENTVAL USERINFO:FULLNAME:FORCE /]<br>
+                [LL_WEBREPORT_ENDFOR /]
+            </td>
+            <td>
+                [LL_WEBREPORT_FOR DATA:[LL_REPTAG='DepRemit' TOLIST:',' /] VAR:DepRem /]
+                    [LL_REPTAG_%DepRem CURRENTVAL /]<br>
+                [LL_WEBREPORT_ENDFOR /]
+            </td>
+            <td>
+                [LL_WEBREPORT_FOR DATA:[LL_REPTAG='CECO' TOLIST:',' /] VAR:Ceco /]
+                    [LL_REPTAG_%Ceco CURRENTVAL  /]<br>
+                [LL_WEBREPORT_ENDFOR /]
+            </td>
+            <td>
+                [LL_WEBREPORT_FOR DATA:[LL_REPTAG='Destinatario' TOLIST:',' /] VAR:Dest /]
+                    [LL_REPTAG_%Dest CURRENTVAL USERINFO:FULLNAME:FORCE /]<br>
+                [LL_WEBREPORT_ENDFOR /]
+            </td>
+            <td>
+                [LL_WEBREPORT_FOR DATA:[LL_REPTAG='DepDest' TOLIST:',' /] VAR:DepRem /]
+                    [LL_REPTAG_%DepRem CURRENTVAL /]<br>
+                [LL_WEBREPORT_ENDFOR /]
+            </td>
+            <td>[LL_REPTAG='NAnexos' DECODE:?:' ' /]</td>
+            
+            <td>[LL_REPTAG='NSigo' DECODE:?:' ' /]</td>
+            <td>
+            [LL_WEBREPORT_FOR DATA:[LL_REPTAG='RefRadicado' TOLIST:',' /] VAR:RadicadoRef /]
+                [LL_REPTAG_$SWR_RadicadoReferencia RUNSWR:radicado:[LL_REPTAG_%RadicadoRef CURRENTVAL /] TRIM SETVAR:IDCarpeta /]
+                [LL_WEBREPORT_IF "[LL_REPTAG_!IDCarpeta /]" == "" /]
+                    [LL_REPTAG_%RadicadoRef CURRENTVAL DECODE:?:' ' /]<br>
+                [LL_WEBREPORT_ELSE /]
+                    <a href="[LL_REPTAG_URLPREFIXFULL /][LL_REPTAG_!IDCarpeta LLURL:BROWSE /]" target="_BLANK">
+                        [LL_REPTAG_%RadicadoRef CURRENTVAL /]
+                    </a><br>
+                [LL_WEBREPORT_ENDIF /]
+            [LL_WEBREPORT_ENDFOR /]
+             </td>
+             [LL_WEBREPORT_IF "[LL_REPTAG='Confidencial' /]" == "?" || "[LL_REPTAG='Confidencial' /]" == "0" /]
+                <td>No</td>
+             [LL_WEBREPORT_ELSE /]
+                <td>Si</td>
+             [LL_WEBREPORT_ENDIF /]
+            
+            <td>[LL_REPTAG='CategoriaAsunto' DECODE:?:' ' /]</td>
+            <td>[LL_REPTAG='Medio' DECODE:?:' ' /]</td>
+            <td>[LL_REPTAG='TipoDistribucion' /]</td>
+            <td>[LL_REPTAG='RadicadoContigencia' DECODE:?:' ' /]</td>
+        </tr>
+        [LL_WEBREPORT_ENDROW /]
+    </tbody>
+    <tfoot>
+    </tfoot>
+</table>
