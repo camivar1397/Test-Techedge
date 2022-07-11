@@ -1,0 +1,91 @@
+/*
+████████╗███████╗ ██████╗██╗  ██╗███████╗██████╗  ██████╗ ███████╗    ████████╗███████╗ █████╗ ███╗   ███╗
+╚══██╔══╝██╔════╝██╔════╝██║  ██║██╔════╝██╔══██╗██╔════╝ ██╔════╝    ╚══██╔══╝██╔════╝██╔══██╗████╗ ████║
+   ██║   █████╗  ██║     ███████║█████╗  ██║  ██║██║  ███╗█████╗         ██║   █████╗  ███████║██╔████╔██║
+   ██║   ██╔══╝  ██║     ██╔══██║██╔══╝  ██║  ██║██║   ██║██╔══╝         ██║   ██╔══╝  ██╔══██║██║╚██╔╝██║
+   ██║   ███████╗╚██████╗██║  ██║███████╗██████╔╝╚██████╔╝███████╗       ██║   ███████╗██║  ██║██║ ╚═╝ ██║
+   ╚═╝   ╚══════╝ ╚═════╝╚═╝  ╚═╝╚══════╝╚═════╝  ╚═════╝ ╚══════╝       ╚═╝   ╚══════╝╚═╝  ╚═╝╚═╝     ╚═╝
+                                            ╦╔╗╔╔═╗╔═╗╦╦═╗╦╔╗╔╔═╗  ╔╦╗╦═╗╦ ╦╔═╗╔╦╗  ╔═╗╦  ╔═╗╔╗ ╔═╗╦  ╦ ╦ ╦
+                                            ║║║║╚═╗╠═╝║╠╦╝║║║║║ ╦   ║ ╠╦╝║ ║╚═╗ ║   ║ ╦║  ║ ║╠╩╗╠═╣║  ║ ╚╦╝
+                                            ╩╝╚╝╚═╝╩  ╩╩╚═╩╝╚╝╚═╝   ╩ ╩╚═╚═╝╚═╝ ╩   ╚═╝╩═╝╚═╝╚═╝╩ ╩╩═╝╩═╝╩ 
+*/
+/***** Paso de WF para cargar los archivos adjuntos a SharePoint - DGC 21/04/2020 BEGIN *****/
+//Cargar APP del proceso
+apc = docman.getScriptByNickname("am_correspondencia_config").getCSVars()?.app
+
+//Cargar instancia de WF
+def wfstatus = workflow.getWorkflowStatus(workID, subWorkID)
+def wfattachments = wfstatus.attachments
+def anexos = docman.getNodeByName(wfattachments, "Anexos")
+def form = forms.getWorkFlowFormDirect(wfstatus, "Form")
+
+//Lista de correos
+def listemails = []
+
+//Agregar correo destinatario externo
+listemails.add(form.paracorreo.value)
+
+//Agregar correo remitente
+listemails.add(users.getUserById(form.deusuario.value as long).email)
+
+//Agregar correo copia interna
+for(int i=0; i<form.ccint.size(); i++){
+    if(!form.ccint[i].value.isEmpty()){
+        listemails.add(users.getUserById(form.ccint[i].value as long).email)
+    }
+}
+
+//Agregar correo copia externa
+for(int i=0; i<form.ccext.size(); i++){
+    if(!form.ccext[i].correo.value.isEmpty()){
+        listemails.add(form.ccext[i].correo.value)
+    }
+}
+
+//Evaluar anexos y borrar SharePoint
+if(!form.anexos.value.isEmpty()){
+    try{
+        def result = runCS("${apc.subScripts.delsharepoint}", "${form.radicado.value}")
+        if(!result.msgcode){
+            if(result.msgdesc != "No se encontro hijo"){
+                log.error("Error en la eliminacion del folder en SharePoint ${form.radicado.value}")
+            }
+        }
+    }catch(e){
+        log.error("Error en el paso de WF Sharepoint", e)
+    }
+}
+
+//Evaluar anexos del WF
+if(anexos.getChildren().size() > 0){
+    try{
+        def result = runCS("${apc.subScripts.sharepoint}","${workID}","${subWorkID}","${form.radicado.value}","${listemails.unique().toString().replace("[","").replace("]","")}")
+        
+        if(result.msgcode){
+            form.anexos.value= ""
+            form.anexos.value+= "<ul>"
+            //Hipervinculo para usuarios internos de Techedge
+            form.anexos.value+= "<li>Haz clic <a href=\"${result.folder[0].webUrl}\">aquí</a> si eres empleado de Techedge y deseas ver los anexos</li>"
+        
+            //Hipervinculo para usuarios externos de Techedge
+            int size = result.share[0].value.size()
+            for(int i=0; i<size; i++){
+                if(result.share[0].value[i].link){
+                    form.anexos.value+= "<li>Haz clic <a href=\"${result.share[0].value[i].link.webUrl}\">aquí</a> si eres un usuario externo y deseas ver los anexos</li>"
+                }
+            }
+            form.anexos.value+= "</ul>"
+        }else{
+            log.error("Error en el cargue de adjuntos a Sharepoint ${result.msgdesc}")
+        }
+    }catch(e){
+         log.error("Error en el paso de WF Sharepoint", e)
+    }
+}
+
+//Actualizar el form en el WF
+forms.updateWorkFlowFormDirect(wfstatus, "Form", form)
+
+/***** Paso de WF para cargar los archivos adjuntos a SharePoint - DGC 21/04/2020 END *****/
+
+
