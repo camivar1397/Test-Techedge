@@ -1,0 +1,169 @@
+/*
+████████╗███████╗ ██████╗██╗  ██╗███████╗██████╗  ██████╗ ███████╗    ████████╗███████╗ █████╗ ███╗   ███╗
+╚══██╔══╝██╔════╝██╔════╝██║  ██║██╔════╝██╔══██╗██╔════╝ ██╔════╝    ╚══██╔══╝██╔════╝██╔══██╗████╗ ████║
+   ██║   █████╗  ██║     ███████║█████╗  ██║  ██║██║  ███╗█████╗         ██║   █████╗  ███████║██╔████╔██║
+   ██║   ██╔══╝  ██║     ██╔══██║██╔══╝  ██║  ██║██║   ██║██╔══╝         ██║   ██╔══╝  ██╔══██║██║╚██╔╝██║
+   ██║   ███████╗╚██████╗██║  ██║███████╗██████╔╝╚██████╔╝███████╗       ██║   ███████╗██║  ██║██║ ╚═╝ ██║
+   ╚═╝   ╚══════╝ ╚═════╝╚═╝  ╚═╝╚══════╝╚═════╝  ╚═════╝ ╚══════╝       ╚═╝   ╚══════╝╚═╝  ╚═╝╚═╝     ╚═╝
+                                            ╦╔╗╔╔═╗╔═╗╦╦═╗╦╔╗╔╔═╗  ╔╦╗╦═╗╦ ╦╔═╗╔╦╗  ╔═╗╦  ╔═╗╔╗ ╔═╗╦  ╦ ╦ ╦
+                                            ║║║║╚═╗╠═╝║╠╦╝║║║║║ ╦   ║ ╠╦╝║ ║╚═╗ ║   ║ ╦║  ║ ║╠╩╗╠═╣║  ║ ╚╦╝
+                                            ╩╝╚╝╚═╝╩  ╩╩╚═╩╝╚╝╚═╝   ╩ ╩╚═╚═╝╚═╝ ╩   ╚═╝╩═╝╚═╝╚═╝╩ ╩╩═╝╩═╝╩ 
+*/
+/***** CS para las excepciones de asignación de comunicaciones a usuarios delegados del WF - LPA 13/04/2020 BEGIN *****/
+
+//**** Declaracion de constantes
+APC = docman.getScriptByNickname("am_correspondencia_config").getCSVars()?.app
+WFSTATUS = workflow.getWorkflowStatus(workID, subWorkID)
+WFATTR = WFSTATUS.getAttributes()
+FORM = forms.getWorkFlowFormDirect(WFSTATUS, "Form")
+WFATTRCCINT = WFATTR.data.CopiaInt
+WFATTRDEPINT = WFATTR.data.DependenciaCCInt
+
+//**** Declaracion de variables
+def conCopia = []
+
+/******************************************Main Code BEGIN******************************************/
+try{
+    //Validar usuarios delegados y cambiar el destinatario
+    validarUsuariosDelegados()
+    
+    //Validar Excepciones de Empresa
+    validarExepcionesEmpresa(conCopia)
+    
+    //Limpiar atributos cc en el WF
+    limpiarccWorkflow()
+    
+    //Actualizar atributo cc en el WF
+    actualizarccWorkflow(conCopia)
+    
+}catch(e){
+    log.error("Error en la actualizacion de usuarios delegados", e)
+}
+
+/******************************************Main Code END******************************************/
+
+/*****************************************Functions BEGIN*****************************************/
+
+//Validar usuarios delegados y cambiar el destinatario
+def validarUsuariosDelegados(){
+    
+    try{
+        //Validar si el usuario destinatario existe
+        if(!FORM.parausuario.value.isEmpty()){
+            def queryDelegados = """SELECT AsignadoA
+                                    FROM Z_COR_UsuariosDelegados
+                                    WHERE Activo = 1 
+                                    AND UsuarioDelegado = ${FORM.parausuario.value}
+                                 """
+
+            def resultQueryDelegados = sql.runSQLFast(queryDelegados, false, false, 0).rows
+            //Validar usuario delegado y actualizar atributo del WF
+            if(resultQueryDelegados.size() > 0){
+                WFATTR.data.Destinatario = resultQueryDelegados.get(0).get('AsignadoA') as long 
+                updateDest(resultQueryDelegados.get(0).get('AsignadoA') as long)
+            }else{
+                WFATTR.data.Destinatario = FORM.parausuario.value as long
+                updateDest(FORM.parausuario.value as long)
+            }
+            WFSTATUS.updateData()
+        } 
+
+    }catch(e){
+        log.error("Error en la actualizacion atributos delegado del WF", e)
+    }
+    
+}
+
+//Validar Excepciones de Empresa
+def validarExepcionesEmpresa(conCopia){
+    
+    //Validar si el campo empresa se encuentra vacio
+    if(!FORM.deempresa.value.isEmpty()){
+        def queryExcepciones = """SELECT 
+                                  (SELECT STRING_AGG (Destinatario, ';')  
+                                   FROM Z_COR_ExcepcionesEmpresa
+                                   WHERE Seq = ex.Seq) AS 'Destinatario',
+                                  ex.Correo
+                                  FROM Z_COR_ExcepcionesEmpresa ex
+                                  WHERE ex.Activo = 1 AND ex.RowSeqNum=1
+                                  AND ex.Empresa = '${FORM.deidentificacion.value}'
+                               """
+        def resultQueryExcepcion = sql.runSQLFast(queryExcepciones, false, false, 0).rows
+    
+        //Validar correos y destinatarios en excepcion empresa
+        if(resultQueryExcepcion.size() > 0){
+        
+            def destinatarios = resultQueryExcepcion.get(0)?.get("Destinatario")?.split(";")
+            if(destinatarios){
+                for(int i=0; i<destinatarios.size(); i++){
+                    conCopia.add(users.getUserById(destinatarios[i] as long).email)
+                }
+            }
+        
+            def correos = resultQueryExcepcion.get(0)?.get("Correo")?.split(";")
+            if(correos){
+                for(int i=0; i<correos.size(); i++){
+                    conCopia.add(correos[i])
+                } 
+            }
+        }
+    }   
+}
+
+//Limpiar atributo Copiados
+def limpiarccWorkflow(){
+    for(int i=0; i<WFATTRCCINT.size(); i++){
+        WFATTRCCINT[i] = null
+        WFATTRDEPINT[i] = null
+        WFSTATUS.updateData()
+    }
+}
+
+//Mapear usuarios con copia al atributo del WF
+def actualizarccWorkflow(conCopia){
+    conCopia = conCopia.unique()
+    for(int i=0; i<conCopia.size(); i++){
+        WFATTRCCINT[i] = conCopia[i] 
+        
+       //Buscar dependencia
+       def depend = getDependence(conCopia[i])
+       
+       if(depend){
+           if(depend.size() > 0){
+               WFATTRDEPINT[i] = depend[0].Sigla
+           }else{
+               WFATTRDEPINT[i] = null
+           }
+       }else{
+           WFATTRDEPINT[i] = null
+       }
+       
+        //Actualizar WF
+        WFSTATUS.updateData()
+    }
+}
+
+//Actualizar el performer de la tarea
+def updateDest(userID){
+    
+    def wfTask = WFSTATUS.tasks.find{ it.title == 'Aceptar comunicación' }    
+    
+    wfTask ? wfTask.reassign(users.getUserById(userID)) : null
+}
+/*****************************************Functions END*****************************************/
+
+/*****************************************Utils BEGIN*****************************************/
+def getDependence(email){
+    def depend
+    def userbyMail = users.searchUsersByEmail(email).listAll()
+    
+    for(int i=0; i<userbyMail.size(); i++){
+        depend = runCS("${APC.subScripts.userDepend}", "${userbyMail[i].ID}").result
+        break
+    } 
+    
+    return depend
+}
+/*****************************************Utils END*****************************************/
+
+/***** CS para las excepciones de asignación de comunicaciones a usuarios delegados del WF - LPA 13/04/2020 END *****/
