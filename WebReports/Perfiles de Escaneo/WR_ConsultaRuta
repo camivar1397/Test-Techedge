@@ -1,0 +1,19 @@
+[LL_WEBREPORT_EXCLUDEHTML /]
+
+[LL_WEBREPORT_IF "[LL_REPTAG_&IDCarpeta /]" != "" /]
+    [LL_REPTAG_&IDCarpeta NODEINFO:PATH SETVAR:List /]
+
+    [//Iterar la ruta para remover los dos primeros niveles
+    [LL_WEBREPORT_FOR DATA:[LL_REPTAG_!List TOLIST:":" /] VAR:i /]
+        [LL_WEBREPORT_IF "[LL_REPTAG_%i_index CURRENTVAL /]" != "1" && "[LL_REPTAG_%i_index CURRENTVAL /]" != "2" /]
+            [LL_REPTAG_%i CURRENTVAL CONCATVAR:Path:":" /]
+        [LL_WEBREPORT_ENDIF /]
+    [LL_WEBREPORT_ENDFOR /]
+
+    [//Agregar la ruta a la variable principal
+    [LL_REPTAG_!Path /]
+
+[LL_WEBREPORT_ENDIF /]
+
+[LL_WEBREPORT_STARTROW /]
+[LL_WEBREPORT_ENDROW /]
