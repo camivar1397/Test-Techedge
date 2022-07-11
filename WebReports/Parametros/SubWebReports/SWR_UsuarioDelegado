@@ -1,0 +1,15 @@
+[LL_WEBREPORT_FORCEUTF8 /]
+<table border="1">
+    <tr>
+        <th>Destinatario</th>
+        <th>Cargo</th>
+        <th>Usuario delegado</th>
+    </tr>
+[LL_WEBREPORT_STARTROW /]
+    <tr>
+        <td>[LL_REPTAG='UsuarioDelegado' /]</td>
+        <td>[LL_REPTAG='Cargo' /]</td>
+        <td>[LL_REPTAG='AsignadoA' /]</td>
+    </tr>
+[LL_WEBREPORT_ENDROW /]
+</table>
