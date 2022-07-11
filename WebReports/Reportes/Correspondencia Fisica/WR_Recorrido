@@ -1,0 +1,49 @@
+[LL_WEBREPORT_IF "[LL_REPTAG_&conHTML /]" == "0" /]
+    [LL_WEBREPORT_EXCLUDEHTML /]
+[LL_WEBREPORT_ENDIF /]
+
+[LL_WEBREPORT_TITLE TITLE1:"Consulta:" TITLE2:"Recorridos" /]
+
+<link rel="stylesheet" href="/img/appearances/Ecopetrol/libs/css/jquery.dataTables.min.css">
+<link rel="stylesheet" href="/img/appearances/Ecopetrol/libs/css/responsive.dataTables.min.css">
+<link rel="stylesheet" href="/img/appearances/Ecopetrol/libs/reports/Reportes.css">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Exo+2:100,100i,400,400i,700,700i&amp;display=swap">
+<div align="right">
+    <a class="btn btn-success" href="[LL_REPTAG_'?func=ll&objId=[LL_REPTAG_$WR_FiltrosRecorridos /]&objAction=RunReport' /]"><span class="glyphicon glyphicon-plus"></span> Volver</a>
+</div>
+<table id="myTable" class="table table-hover display dt-responsive" style="width:100%">
+    <thead>
+        <tr>
+            <th>No.</th>
+            <th>ID recorrido</th>
+            <th>Fecha recorrido</th>
+            <th>CGC</th>
+            <th>Radicador</th>
+        </tr>
+    </thead>
+    <tbody>
+[LL_WEBREPORT_STARTROW /]
+        <tr>
+            <td>[LL_REPTAG_ROWNUM /]</td>
+            [LL_REPTAG_$SWR_IDPDF RUNSWR:documento:"[LL_REPTAG='IDRecorrido' /].pdf" TRIM SETVAR:pdfID /]
+            [LL_WEBREPORT_IF "[LL_REPTAG_!pdfID /]" == "" /]
+                <td>[LL_REPTAG='IDRecorrido' /]</td>
+            [LL_WEBREPORT_ELSE /]
+                [LL_REPTAG_!pdfID NODEINFO:PARENTID SETVAR:IDpadre /]
+                [LL_WEBREPORT_IF "[LL_REPTAG_!IDpadre NODEINFO:NAME /]" == "[LL_REPTAG='CGC' /]" /]
+                    <td><a href="[LL_REPTAG_URLPREFIXFULL /][LL_REPTAG_!pdfID LLURL:OPEN /]" target="_BLANK">[LL_REPTAG='IDRecorrido' /]</a></td>
+                [LL_WEBREPORT_ENDIF /]
+            [LL_WEBREPORT_ENDIF /]
+            <td>[LL_REPTAG='FechaRecorrido' DATE:"%d/%m/%Y %I:%M %p" /]</td>
+            <td>[LL_REPTAG='CGC' /]</td>
+            <td>[LL_REPTAG='Mensajero' USERINFO:LASTNAME /][LL_REPTAG_', ' /][LL_REPTAG='Mensajero' USERINFO:FIRSTNAME /]</td>
+[LL_WEBREPORT_ENDROW /]
+    </tbody>
+    <tfoot>
+    </tfoot>
+</table>
+<script src="/img/core/jquery.min.js"></script>
+<script src="/img/appearances/Ecopetrol/libs/js/jquery.dataTables.min.js"></script>
+<script src="/img/appearances/Ecopetrol/libs/js/bootstrap.min.js"></script>
+<script src="/img/appearances/Ecopetrol/libs/js/dataTables.responsive.min.js"></script>
+<script src="/img/appearances/Ecopetrol/libs/reports/Reportes.js"></script>
