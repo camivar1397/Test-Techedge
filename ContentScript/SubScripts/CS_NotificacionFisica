@@ -1,0 +1,108 @@
+/*
+████████╗███████╗ ██████╗██╗  ██╗███████╗██████╗  ██████╗ ███████╗    ████████╗███████╗ █████╗ ███╗   ███╗
+╚══██╔══╝██╔════╝██╔════╝██║  ██║██╔════╝██╔══██╗██╔════╝ ██╔════╝    ╚══██╔══╝██╔════╝██╔══██╗████╗ ████║
+   ██║   █████╗  ██║     ███████║█████╗  ██║  ██║██║  ███╗█████╗         ██║   █████╗  ███████║██╔████╔██║
+   ██║   ██╔══╝  ██║     ██╔══██║██╔══╝  ██║  ██║██║   ██║██╔══╝         ██║   ██╔══╝  ██╔══██║██║╚██╔╝██║
+   ██║   ███████╗╚██████╗██║  ██║███████╗██████╔╝╚██████╔╝███████╗       ██║   ███████╗██║  ██║██║ ╚═╝ ██║
+   ╚═╝   ╚══════╝ ╚═════╝╚═╝  ╚═╝╚══════╝╚═════╝  ╚═════╝ ╚══════╝       ╚═╝   ╚══════╝╚═╝  ╚═╝╚═╝     ╚═╝
+                                            ╦╔╗╔╔═╗╔═╗╦╦═╗╦╔╗╔╔═╗  ╔╦╗╦═╗╦ ╦╔═╗╔╦╗  ╔═╗╦  ╔═╗╔╗ ╔═╗╦  ╦ ╦ ╦
+                                            ║║║║╚═╗╠═╝║╠╦╝║║║║║ ╦   ║ ╠╦╝║ ║╚═╗ ║   ║ ╦║  ║ ║╠╩╗╠═╣║  ║ ╚╦╝
+                                            ╩╝╚╝╚═╝╩  ╩╩╚═╩╝╚╝╚═╝   ╩ ╩╚═╚═╝╚═╝ ╩   ╚═╝╩═╝╚═╝╚═╝╩ ╩╩═╝╩═╝╩ 
+*/
+/***** Subscript para enviar notificación del remitente de la radicación física - JHMM 12/06/2020 BEGIN *****/
+
+//**** Declaracion de parámetros
+def listDestinatarios = args[0]
+def radicado = args[1]
+def asuntoCorreo = args[2]
+
+//**** Declaracion de constantes
+APC = docman.getScriptByNickname("am_correspondencia_config").getCSVars()?.app
+
+//**** Declaracion de variables
+class EmailProperties {
+    String email
+    String cuerpo
+    String info
+    String titulo
+    String asunto
+}
+def newCorreo = new EmailProperties()
+
+//cuerpo correo
+def sqlCode = """SELECT IDCarpeta, Asunto, Radicado,
+                 FORMAT(DATEADD(HH,-5,FechaRadicado),'dd/MM/yyyy hh:mm:ss tt') FechaRadicado,
+                 TipoComunicacion, DeUsuarioInt, NAnexos, NFolios, DeDependencia, OrigenComunicado, DeUsuarioRext
+                 FROM Z_COR_RadicacionFisica
+                 WHERE Radicado = '${radicado}' 
+                 AND RowSeqNum = 1
+              """
+
+comunicacion = sql.runSQLFast(sqlCode, false, false, 0).rows[0]
+
+def tipoCom = runCS("${APC.subScripts.siglatovalue}", "Parametros", "${comunicacion.TipoComunicacion}", null, null, "TIPC" ).result
+
+newCorreo.email= "<tr>"
+newCorreo.email+="<td align='justify'>${comunicacion.Asunto}</td>"
+newCorreo.email+="<td align='center'><a href='https://co-explorationlab.r53.techedgegroup.com/OTCS/llisapi.dll?func=ll&objId=${comunicacion.IDCarpeta}&objAction=browse' target='_blank'>${comunicacion.Radicado}</td>"
+newCorreo.email+="<td align='center'>${comunicacion.FechaRadicado}</td>"
+newCorreo.email+="<td align='center'>${tipoCom ? tipoCom : ""}</td>"
+
+//Validar origen comunicacion
+if(comunicacion.OrigenComunicado == 'INT' || comunicacion.OrigenComunicado == 'EXT') {
+    newCorreo.email+="<td align='center'>${users.getUserById(comunicacion.DeUsuarioInt as long).displayName}</td>"
+    def DepCom = runCS("${APC.subScripts.siglatovalue}", "Z_COR_Dependencias", "${comunicacion.DeDependencia}", "Sigla", "Nombre", null ).result
+    newCorreo.email+="<td align='center'>${DepCom}</td>"
+}else if (comunicacion.OrigenComunicado == 'REXT') {
+    newCorreo.email+="<td align='center'>${comunicacion.DeUsuarioRext}</td>"
+    newCorreo.email+="<td align='center'>N/A</td>"
+}
+
+newCorreo.email+="<td align='center'>${comunicacion.NAnexos}</td>"
+newCorreo.email+="<td align='center'>${comunicacion.NFolios}</td>"
+newCorreo.email+="</tr>"
+newCorreo.email+="<br>"
+String informacion = runCS("${APC.subScripts.siglatovalue}", "Parametros", "CINF", null, null, "FISICA").result
+newCorreo.info = informacion
+    
+//Obtener los parametros y remplazar los comodines
+String cuerpoCorreo =runCS("${APC.subScripts.siglatovalue}", "Parametros", "CBDY", null, null, "FISICA").result
+newCorreo.cuerpo = cuerpoCorreo.replace("@radicado@","${comunicacion.Radicado}")
+
+//Asunto y Cuerpo del correo
+templateEmail = docman.getNode(APC.constants.correoFisico)
+newCorreo.titulo = "Radicación física No. ${comunicacion.Radicado}"
+newCorreo.asunto = asuntoCorreo
+
+/******************************************Main Code BEGIN******************************************/
+try{
+    //Enviar el correo de notificación
+    enviarCorreo(newCorreo, templateEmail, listDestinatarios)
+}catch(e){
+    log.error("Error en el envio de la notificacion reasignación física", e)
+}
+/******************************************Main Code END******************************************/
+
+/*****************************************Functions BEGIN*****************************************/
+
+def enviarCorreo(cuerpoCorreo, templateEmail, toList){
+    //Evaluar template
+    def emailContext = ['asunto':"<h1>${cuerpoCorreo.titulo}</h1>", 'body': cuerpoCorreo.email, 'cuerpo':cuerpoCorreo.cuerpo, 'informacion':cuerpoCorreo.info]
+    def mailbody = template.evaluateTemplate(templateEmail, emailContext)
+    correo = mail.create(mailbody)
+    
+    for(int i = 0; i<toList.size(); i++){
+        //Remitentes de correo
+        correo.to("${toList[i]}")
+    }
+
+    //Enviar Correo
+    correo.from("correspondenciatechedgecol@gmail.com")
+    correo.subject(cuerpoCorreo.asunto)
+    mail.send(correo, "correspondencia")
+}
+/*****************************************Functions END*****************************************/
+
+/***** Subscript para enviar notificación del remitente de la radicación física - JHMM 12/06/2020 END *****/
+
+
