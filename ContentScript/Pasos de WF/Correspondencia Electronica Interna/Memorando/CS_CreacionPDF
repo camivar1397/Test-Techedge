@@ -1,0 +1,102 @@
+/*
+████████╗███████╗ ██████╗██╗  ██╗███████╗██████╗  ██████╗ ███████╗    ████████╗███████╗ █████╗ ███╗   ███╗
+╚══██╔══╝██╔════╝██╔════╝██║  ██║██╔════╝██╔══██╗██╔════╝ ██╔════╝    ╚══██╔══╝██╔════╝██╔══██╗████╗ ████║
+   ██║   █████╗  ██║     ███████║█████╗  ██║  ██║██║  ███╗█████╗         ██║   █████╗  ███████║██╔████╔██║
+   ██║   ██╔══╝  ██║     ██╔══██║██╔══╝  ██║  ██║██║   ██║██╔══╝         ██║   ██╔══╝  ██╔══██║██║╚██╔╝██║
+   ██║   ███████╗╚██████╗██║  ██║███████╗██████╔╝╚██████╔╝███████╗       ██║   ███████╗██║  ██║██║ ╚═╝ ██║
+   ╚═╝   ╚══════╝ ╚═════╝╚═╝  ╚═╝╚══════╝╚═════╝  ╚═════╝ ╚══════╝       ╚═╝   ╚══════╝╚═╝  ╚═╝╚═╝     ╚═╝
+                                            ╦╔╗╔╔═╗╔═╗╦╦═╗╦╔╗╔╔═╗  ╔╦╗╦═╗╦ ╦╔═╗╔╦╗  ╔═╗╦  ╔═╗╔╗ ╔═╗╦  ╦ ╦ ╦
+                                            ║║║║╚═╗╠═╝║╠╦╝║║║║║ ╦   ║ ╠╦╝║ ║╚═╗ ║   ║ ╦║  ║ ║╠╩╗╠═╣║  ║ ╚╦╝
+                                            ╩╝╚╝╚═╝╩  ╩╩╚═╩╝╚╝╚═╝   ╩ ╩╚═╚═╝╚═╝ ╩   ╚═╝╩═╝╚═╝╚═╝╩ ╩╩═╝╩═╝╩ 
+*/
+/***** CS que genera el PDF y lo mueve a los attach - JHMM 17/01/2020 BEGIN *****/
+def wfstatus = workflow.getWorkflowStatus(workID, subWorkID)
+def wfattachments = wfstatus.getAttachmentsFolder()
+def form = forms.getWorkFlowFormDirect(wfstatus, "Form")
+
+//Cargar APP de este OnLoad
+app = csvars.app
+
+//Cargar APP del proceso
+apc = docman.getScriptByNickname("am_correspondencia_config").getCSVars()?.app
+
+//Ejecutar query campos Conf
+def conf = sql.runSQLFast(app.querys.conf , false, false, 0).rows.collectEntries{[(it.Sigla):it.DescripcionLarga]}
+
+//Precargar datos
+form.viewParams.title = conf.get("TMEM")
+form.viewParams.footer = conf.get("FOT")
+form.viewParams.footerp = conf.get("FOTP")
+form.viewParams.footersp = conf.get("FOTSP")
+
+form.viewParams.mostrarRadicado = "block"
+
+//Precargar select from viewParams
+form.viewParams.protocolo = sql.runSQLFast(app.querys.prot , false, false, 0).rows.collect{[label:it.DescripcionLarga,value:it.Sigla]}
+form.viewParams.tipoc = sql.runSQLFast(app.querys.tipoc , false, false, 0).rows.collect{[label:it.DescripcionLarga,value:it.Sigla]}
+form.viewParams.categoriaa = sql.runSQLFast(app.querys.catas , false, false, 0).rows.collect{[label:it.DescripcionLarga,value:it.Sigla]}
+form.viewParams.municipio = sql.runSQLFast(app.querys.ciudades , false, false, 0).rows.collect{[label:it.Ciudad,value:it.Seq]}
+
+// Llenar viweparams barcode
+form.viewParams.radicado = form.radicado.value
+form.viewParams.fechaRadicado = form.fecharadicado.valueAsDate.format('dd/MM/yyyy hh:mm a')
+form.viewParams.dependencia = form.dependencia.value
+form.viewParams.destino = form.destino.value
+form.viewParams.anexos = form.nanexos.value
+
+form.viewParams.ciudadRad = runCS("${apc.subScripts.siglatovalue}", "Z_COR_Municipios", "${form.ciudad.value}", "Seq", "Ciudad", null ).result
+
+String redaccion = users.getUserById(form.usuariomodificacion.value as long).firstName.charAt(0).toUpperCase()
+redaccion += users.getUserById(form.usuariomodificacion.value as long).lastName.charAt(0).toUpperCase()
+form.viewParams.userredaccion = redaccion
+log.error("Rad: " + form.radicado.value)
+sourceFile = forms.createRendableForm(form, asCSNode(apc.views.mem))
+sourceFile = rend.htmlToPdf(sourceFile, [:], """-B 31 -T 28 -L 21 -R 14 --viewport-size 1757x1240 --footer-html "https://co-explorationlab.r53.techedgegroup.com/OTCS/llisapi.dll/fetch/2457/1563155/1564762/1852857/-/footer.html?nodeid=1853187" \${source} --cookie \${cookie} \${destination}  """)
+
+/*https://co-explorationlab.r53.techedgegroup.com/OTCS/llisapi.dll/fetch/2457/1563155/1564762/1852857/-/footer.html?nodeid=1853187 URL del template del footer en exploration lab, este no es obligatorio*/
+
+sourceFile.name ="${form.radicado.value}.pdf"
+
+try{
+    res =  pdf.addBarcode(sourceFile.content,"CODE_128", "${form.radicado.value}", 1, 13, 46, 180, 30)
+    res.name = sourceFile.name
+    try{
+        //Crear el PDF en los adjuntos de WF
+         docman.createDocument(wfattachments, res.name, res.content)
+    }catch(e){
+        //Si el PDF ya existe, agregar una version
+        def doc = docman.getNodeByName(wfattachments, res.name)
+        doc != null ? docman.addVersion(doc, res.content) : log.error("Error al crear el PDF memorando ${res.name}: " + e)        
+    }
+
+}catch(e){
+    log.error("No se puede aplicar el código de barras a el memorando ${sourceFile.name}", e)
+}
+//Agregar marca de agua
+try{
+    if(form.confidencial.value == "true"){
+        res.name = sourceFile.name
+        def doc = docman.getNodeByName(wfattachments, res.name)
+        watermark = pdf.waterMark().content("CONFIDENCIAL").fontSize(90).color("BLACK")
+        pdf.addWaterMark(doc, watermark)
+        docman.addVersion(doc, doc.content)
+    }    
+    
+}catch(e){
+    log.error("No se puede agregar la marca de agua al PDF ${sourceFile.name}", e)
+}
+//docman.copyNode(asCSNode("1825542" as long), wfattachments, "${form.radicado.value}.pdf")
+//Actualizar el estado del Form
+form.estado.value = "Aprobación"
+forms.updateWorkFlowFormDirect(wfstatus, "Form", form)
+/***** CS que genera el PDF y lo mueve a los attach - JHMM 17/01/2020 END *****/
+
+
+
+
+
+
+
+
+
+
