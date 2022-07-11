@@ -1,0 +1,165 @@
+/*
+████████╗███████╗ ██████╗██╗  ██╗███████╗██████╗  ██████╗ ███████╗    ████████╗███████╗ █████╗ ███╗   ███╗
+╚══██╔══╝██╔════╝██╔════╝██║  ██║██╔════╝██╔══██╗██╔════╝ ██╔════╝    ╚══██╔══╝██╔════╝██╔══██╗████╗ ████║
+   ██║   █████╗  ██║     ███████║█████╗  ██║  ██║██║  ███╗█████╗         ██║   █████╗  ███████║██╔████╔██║
+   ██║   ██╔══╝  ██║     ██╔══██║██╔══╝  ██║  ██║██║   ██║██╔══╝         ██║   ██╔══╝  ██╔══██║██║╚██╔╝██║
+   ██║   ███████╗╚██████╗██║  ██║███████╗██████╔╝╚██████╔╝███████╗       ██║   ███████╗██║  ██║██║ ╚═╝ ██║
+   ╚═╝   ╚══════╝ ╚═════╝╚═╝  ╚═╝╚══════╝╚═════╝  ╚═════╝ ╚══════╝       ╚═╝   ╚══════╝╚═╝  ╚═╝╚═╝     ╚═╝
+                                            ╦╔╗╔╔═╗╔═╗╦╦═╗╦╔╗╔╔═╗  ╔╦╗╦═╗╦ ╦╔═╗╔╦╗  ╔═╗╦  ╔═╗╔╗ ╔═╗╦  ╦ ╦ ╦
+                                            ║║║║╚═╗╠═╝║╠╦╝║║║║║ ╦   ║ ╠╦╝║ ║╚═╗ ║   ║ ╦║  ║ ║╠╩╗╠═╣║  ║ ╚╦╝
+                                            ╩╝╚╝╚═╝╩  ╩╩╚═╩╝╚╝╚═╝   ╩ ╩╚═╚═╝╚═╝ ╩   ╚═╝╩═╝╚═╝╚═╝╩ ╩╩═╝╩═╝╩ 
+*/
+/***** CS para leer la tabla del Formulario de Radicacion Externa e iniciar WFs - DGC 07/04/2020 BEGIN - QAS JHNM 08/07/2020 *****/
+
+//**** Declaracion de constantes
+APC = docman.getScriptByNickname("am_correspondencia_config").getCSVars()?.app
+DATE = new Date()
+
+//**** Declaracion de variables
+def fmRad = []
+def listForms = []
+def wfRadext = []
+dia = DATE.format("EEE")
+hora = DATE.format("HH") as int
+
+/*************************************************** Main Code BEGIN***************************************************/
+try{
+    //Evaluar el dia de ejecucion y la hora
+    if((dia != "Sat") && (dia != "Sun")){
+        if((hora >= 8) && (hora <= 17)){
+            //Consultar los datos ingresados desde el formulario de radicacion externa
+            fmRad = consultafmRad()
+    
+            //Construir un listado de objetos form con los datos de la consulta
+            listForms = setForm(fmRad)
+    
+            //Iniciar WF de Correspondencia Electronica Recibida Externa
+            wfRadext = setWorkflow(listForms)
+    
+            //Actualizar Formularios en BD Script Console
+            setFmRad(fmRad, wfRadext)
+        }
+    }
+}catch(e){
+    log.error("Error en el content script de radicacion externa", e)
+}
+/*************************************************** Main Code END ***************************************************/
+
+/*************************************************** Funciones BEGIN ***************************************************/
+
+//Consultar los datos ingresados desde el formulario de radicacion externa
+def consultafmRad(){
+    def queryfm = """SELECT ID, Ciudad, Fecha, ParaUsuario, ParaNombre,
+                            ParaCorreo, DeUsuario, DeCorreo, DeEmpresa,
+                            DeIdentificacion, 
+                            DeTelefono, DeDireccion, DeCiudad,
+                            CC, Asunto, Observaciones,
+                            CategoriaAsunto, TipoComunicacion, NAnexos,
+                            IDAnexos
+                     FROM Z_FN_COR_ObtenerCER()
+                  """
+    
+    def conn = jdbc.conn("otsc")
+    def result = conn.rows(queryfm)
+    conn.close()
+    return result
+}
+
+//Construir un listado de objetos form con los datos de la consulta
+def setForm(fmRad){
+    //Declarar una lista de forms
+    def listForms = []
+    
+    //Recorre el objeto fmRad para construir los objetos form
+    fmRad.each{result -> 
+        def form = forms.getFormInfo(APC.form.radext)
+        form.id.value = result.ID
+        form.ciudad.value = result.Ciudad
+        form.fecha.value = result.Fecha
+        form.parausuario.value = result.ParaUsuario == 0 ? "" : result.ParaUsuario
+        form.paranombre.value = result.ParaNombre
+        form.paracorreo.value = result.ParaCorreo
+        
+        //buscamos el usuario en las dependencias
+        def depend = runCS("${APC.subScripts.userDepend}", "${form.parausuario.value}" ).result
+        if(depend.size() > 0){
+            form.paradependencia.value = depend.get(0).Nombre
+        }
+        
+        form.deusuario.value = result.DeUsuario
+        form.decorreo.value = result.DeCorreo
+        form.deempresa.value = result.DeEmpresa
+        form.deidentificacion.value = result.DeIdentificacion
+        form.detelefono.value = result.DeTelefono
+        form.dedireccion.value  = result.DeDireccion
+        form.deciudad.value = result.DeCiudad ?: ""
+        
+        result.CC.toString().split(",").each{cc ->
+            if(!cc.trim().isEmpty()){
+                if(form.cc[form.cc.size()-1].value.isEmpty()){
+                    form.cc[form.cc.size()-1].value = cc.trim()
+                }else{
+                    form.cc.addField(form.cc.size())
+                    form.cc[form.cc.size()-1].value = cc.trim()
+                }
+            }
+        }
+        form.asunto.value = result.Asunto
+        form.observaciones.value = result.Observaciones
+        form.categoriaasunto.value = result.CategoriaAsunto
+        form.tipocomunicacion.value = result.TipoComunicacion
+        form.nanexos.value = result.NAnexos
+        result.IDAnexos.toString().split(",").each{docID ->
+            if(form.idanexo[form.idanexo.size()-1].value.isEmpty()){
+                form.idanexo[form.idanexo.size()-1].value = docID.trim()
+            }else{
+                form.idanexo.addField(form.idanexo.size())
+                form.idanexo[form.idanexo.size()-1].value = docID.trim()
+            }
+        }
+        form.estado.value = "Procesado"
+        listForms.add(form)
+    }
+    
+    return listForms
+}
+
+//Iniciar WF de Correspondencia Electronica Recibida Externa
+def setWorkflow(listForms){
+    //Declarar una lista de workflows
+    def listWfinstance = []
+    
+    //Iterar sobre los objetos form
+    listForms.each{form ->
+        //Iniciar Workflow 
+        def wfinstance = forms.startWorkFlow(asCSNode(APC.wf.radicacionexterna), form, "Form", "<WorkID /> Correspondencia Electrónica Recibida")
+        listWfinstance.add(wfinstance)
+    }
+    
+    return listWfinstance
+}
+
+//Actualizar Formularios en BD Script Console
+def setFmRad(fmRad, wfRadext){
+    
+    def conn = jdbc.conn("otsc")
+    
+    fmRad.eachWithIndex{result,index -> 
+        def sp = """EXECUTE Z_SP_COR_ActualizacionFormularioExterno 
+                    @WorkID = ${wfRadext[index].workflowID},
+                    @ID = ${result.id.value},
+                    @Radicado = NULL,
+                    @FechaRadicado = NULL,
+                    @MotivoRechazo = NULL,
+                    @ObservacionesRechazo = NULL,
+                    @Estado = 'Procesado'
+                 """
+        conn.execute(sp)
+    }
+    
+    conn.close()
+}
+/*************************************************** Funciones END ***************************************************/
+
+/***** CS para leer la tabla del Formulario de Radicacion Externa e iniciar WFs - DGC 07/04/2020 END *****/
+
