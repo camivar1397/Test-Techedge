@@ -1,0 +1,89 @@
+/*
+████████╗███████╗ ██████╗██╗  ██╗███████╗██████╗  ██████╗ ███████╗    ████████╗███████╗ █████╗ ███╗   ███╗
+╚══██╔══╝██╔════╝██╔════╝██║  ██║██╔════╝██╔══██╗██╔════╝ ██╔════╝    ╚══██╔══╝██╔════╝██╔══██╗████╗ ████║
+   ██║   █████╗  ██║     ███████║█████╗  ██║  ██║██║  ███╗█████╗         ██║   █████╗  ███████║██╔████╔██║
+   ██║   ██╔══╝  ██║     ██╔══██║██╔══╝  ██║  ██║██║   ██║██╔══╝         ██║   ██╔══╝  ██╔══██║██║╚██╔╝██║
+   ██║   ███████╗╚██████╗██║  ██║███████╗██████╔╝╚██████╔╝███████╗       ██║   ███████╗██║  ██║██║ ╚═╝ ██║
+   ╚═╝   ╚══════╝ ╚═════╝╚═╝  ╚═╝╚══════╝╚═════╝  ╚═════╝ ╚══════╝       ╚═╝   ╚══════╝╚═╝  ╚═╝╚═╝     ╚═╝
+                                            ╦╔╗╔╔═╗╔═╗╦╦═╗╦╔╗╔╔═╗  ╔╦╗╦═╗╦ ╦╔═╗╔╦╗  ╔═╗╦  ╔═╗╔╗ ╔═╗╦  ╦ ╦ ╦
+                                            ║║║║╚═╗╠═╝║╠╦╝║║║║║ ╦   ║ ╠╦╝║ ║╚═╗ ║   ║ ╦║  ║ ║╠╩╗╠═╣║  ║ ╚╦╝
+                                            ╩╝╚╝╚═╝╩  ╩╩╚═╩╝╚╝╚═╝   ╩ ╩╚═╚═╝╚═╝ ╩   ╚═╝╩═╝╚═╝╚═╝╩ ╩╩═╝╩═╝╩ 
+*/
+
+/***** CS para mover los soportes de anulación a la carpeta de radicado (Comunicación física) - JHMM 23/06/2020 BEGIN*****/
+import java.text.SimpleDateFormat
+
+//*** Variables
+String folderNomAn = "Soporte Anulacion"
+
+// Variables WF Anular radicado
+def WFStatus = workflow.getWorkflowStatus(workID, subWorkID)
+def adjuntosWF = WFStatus.getAttachmentsFolder()
+def form = forms.getWorkFlowFormDirect(WFStatus, "Form")
+
+//Evaluar si el campo radicado se encuentra vacío
+try{
+    //Cargar APP del proceso
+    apc = docman.getScriptByNickname("am_correspondencia_config").getCSVars()?.app
+
+    def queryCom = """SELECT IDCarpeta, radicado
+                      FROM Z_COR_RadicacionFisica
+                      WHERE Seq = ${form.workid.value}
+                   """
+    def infoCom = sql.runSQLFast(queryCom , false, false, 0).rows[0]
+
+    //Crear el folder del radicado, agregar categoria, habilitar herencia
+    def folderrad = docman.getNode(infoCom.get("IDCarpeta") as long)
+
+    //Crear el folder de anulación de radicado
+    def foldAnulado = docman.getNodeByPath(folderrad, folderNomAn)
+
+    if(foldAnulado == null){
+        foldAnulado = docman.createFolder(folderrad, folderNomAn)
+    }
+
+    //Mover los adjuntos WF Anular Radicado
+    adjuntosWF.getChildren().each{Node ->
+        docman.moveNode(Node, foldAnulado, null, false, true, null)
+    }
+
+    //Actualizar el atributo del estado en la categoría de radicación
+    workflow.getWorkflowStatus(workID, subWorkID).completedDate
+    
+    folderrad."Radicación"."Usuario Modificacion" = form.usuariomodificacion.value
+    folderrad."Radicación"."Fecha Modificacion" = form.fechamodificacion.valueAsDate
+    folderrad."Radicación"."Estado" = "Anulado"
+    folderrad.update()
+    
+    //Agregar categoría sobre los hijos de la carpeta radicado
+    def hijosFolderRad = []
+    
+    getChildsByID(folderrad.ID, hijosFolderRad)
+    
+    for(int i = 0; hijosFolderRad.size() > i; i++ ){
+        hijosFolderRad[i]."Radicación"."Usuario Modificacion" = form.usuariomodificacion.value
+        hijosFolderRad[i]."Radicación"."Fecha Modificacion" = form.fechamodificacion.valueAsDate
+        hijosFolderRad[i]."Radicación"."Estado" = "Anulado"
+        hijosFolderRad[i].update()
+    }
+
+}catch(e){
+    log.error("Error CS:${self.ID} -> consultando informacion de comunicación física: ${workID}", e)
+}
+
+/***** CS para mover los soportes de anulación a la carpeta de radicado (Comunicación física) - JHMM 23/06/2020 27/01/2020 END*****/
+
+/***** Funciones BEGIN *****/
+
+//Funcion para obtener documentos y agregarlos a la lista
+def getChildsByID(folderid, listFiles){
+   
+    def node = docman.getNode(folderid as long)  
+    def childs = node.getChildren()
+    
+    childs.each{
+        listFiles.add(it)
+        it.subtype == 144 ? listFiles.add(it) : getChildsByID(it.ID, listFiles)
+    }
+}
+/***** Funciones END *****/
