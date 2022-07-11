@@ -1,0 +1,76 @@
+/*
+████████╗███████╗ ██████╗██╗  ██╗███████╗██████╗  ██████╗ ███████╗    ████████╗███████╗ █████╗ ███╗   ███╗
+╚══██╔══╝██╔════╝██╔════╝██║  ██║██╔════╝██╔══██╗██╔════╝ ██╔════╝    ╚══██╔══╝██╔════╝██╔══██╗████╗ ████║
+   ██║   █████╗  ██║     ███████║█████╗  ██║  ██║██║  ███╗█████╗         ██║   █████╗  ███████║██╔████╔██║
+   ██║   ██╔══╝  ██║     ██╔══██║██╔══╝  ██║  ██║██║   ██║██╔══╝         ██║   ██╔══╝  ██╔══██║██║╚██╔╝██║
+   ██║   ███████╗╚██████╗██║  ██║███████╗██████╔╝╚██████╔╝███████╗       ██║   ███████╗██║  ██║██║ ╚═╝ ██║
+   ╚═╝   ╚══════╝ ╚═════╝╚═╝  ╚═╝╚══════╝╚═════╝  ╚═════╝ ╚══════╝       ╚═╝   ╚══════╝╚═╝  ╚═╝╚═╝     ╚═╝
+                                            ╦╔╗╔╔═╗╔═╗╦╦═╗╦╔╗╔╔═╗  ╔╦╗╦═╗╦ ╦╔═╗╔╦╗  ╔═╗╦  ╔═╗╔╗ ╔═╗╦  ╦ ╦ ╦
+                                            ║║║║╚═╗╠═╝║╠╦╝║║║║║ ╦   ║ ╠╦╝║ ║╚═╗ ║   ║ ╦║  ║ ║╠╩╗╠═╣║  ║ ╚╦╝
+                                            ╩╝╚╝╚═╝╩  ╩╩╚═╩╝╚╝╚═╝   ╩ ╩╚═╚═╝╚═╝ ╩   ╚═╝╩═╝╚═╝╚═╝╩ ╩╩═╝╩═╝╩ 
+*/
+/***** Paso de WF para generar las URLs de acceso en el PDF del radicado - FFG 10/11/2020 BEGIN *****/
+import java.text.Normalizer
+
+//Cargar APP del proceso
+apc = docman.getScriptByNickname("am_correspondencia_config").getCSVars()?.app
+
+//Cargar instancia de WF
+def wfstatus = workflow.getWorkflowStatus(workID, subWorkID)
+def wfattachments = wfstatus.attachments
+anexos = docman.getNodeByName(wfattachments, "Anexos")
+form = forms.getWorkFlowFormDirect(wfstatus, "Form")
+csv = '' // Se define la variable csv
+
+//crea seccion de anexos en el PDF de la comunicacion
+if(anexos.getChildren().size() > 0){
+    try {
+        form.anexos.value = ""
+        form.anexos.value += "<ul>"
+        
+        //Hipervinculo para usuarios internos de Techedge
+        def vinculoInterno = apc.constants.gestordocumental + "/OTCS/cs.exe?func=ll&objId=${anexos.ID}&objAction=browse"
+        form.anexos.value += "<li>Haz clic <a href=\"${vinculoInterno}\">aquí</a> si eres empleado de Techedge y deseas ver los anexos</li>"
+        
+        //Hipervinculo para usuarios externos de Techedge
+        csv = generarCSV()
+        def vinculoExterno = apc.constants.sedeElectronica + "/${csv}/sharedDocs" 
+        form.anexos.value += "<li>Haz clic <a href=\"${vinculoExterno}\">aquí</a> si eres un usuario externo y deseas ver los anexos</li>"
+        form.anexos.value += "</ul>"
+        
+        renameAttach()
+    } catch (ex) {
+        log.error("Error en el paso de WF para crear URL CEE", ex)
+    }
+}
+
+//Actualiza los campos idcarpeta y csv
+form.csv.value = csv
+form.idcarpeta.value = anexos.ID
+forms.updateWorkFlowFormDirect(wfstatus,"Form", form)
+
+/*****************************************Functions BEGIN*****************************************/
+//Crea el codigo CSV usando en el link
+String generarCSV(){
+    def fechaHoyAux = new Date()
+    def fechaHoy = fechaHoyAux.format('yyyyMMddHHmmss')
+    def radicado = form.radicado.value
+    return (radicado + fechaHoy).digest('SHA-256')   
+}
+
+/* Función que recorre los adjuntos de WF y los renombra para no tener acentos */
+void renameAttach() {
+    anexos.getChildren().each {
+        docman.renameNode(it, normalizeName(it.name))
+    }
+}
+
+/* Función que eliminar acentos y normaliza el texto dado */
+String normalizeName(name) {
+    return Normalizer.normalize(name, Normalizer.Form.NFD).replaceAll("[\\p{InCombiningDiacriticalMarks}]", "").replace(" ","_")
+}
+/*****************************************Functions END*****************************************/
+
+/***** Paso de WF para generar las URLs de acceso en el PDF del radicado - FFG 10/11/2020 END *****/
+
+
