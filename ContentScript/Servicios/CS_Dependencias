@@ -1,0 +1,80 @@
+/*
+████████╗███████╗ ██████╗██╗  ██╗███████╗██████╗  ██████╗ ███████╗    ████████╗███████╗ █████╗ ███╗   ███╗
+╚══██╔══╝██╔════╝██╔════╝██║  ██║██╔════╝██╔══██╗██╔════╝ ██╔════╝    ╚══██╔══╝██╔════╝██╔══██╗████╗ ████║
+   ██║   █████╗  ██║     ███████║█████╗  ██║  ██║██║  ███╗█████╗         ██║   █████╗  ███████║██╔████╔██║
+   ██║   ██╔══╝  ██║     ██╔══██║██╔══╝  ██║  ██║██║   ██║██╔══╝         ██║   ██╔══╝  ██╔══██║██║╚██╔╝██║
+   ██║   ███████╗╚██████╗██║  ██║███████╗██████╔╝╚██████╔╝███████╗       ██║   ███████╗██║  ██║██║ ╚═╝ ██║
+   ╚═╝   ╚══════╝ ╚═════╝╚═╝  ╚═╝╚══════╝╚═════╝  ╚═════╝ ╚══════╝       ╚═╝   ╚══════╝╚═╝  ╚═╝╚═╝     ╚═╝
+                                            ╦╔╗╔╔═╗╔═╗╦╦═╗╦╔╗╔╔═╗  ╔╦╗╦═╗╦ ╦╔═╗╔╦╗  ╔═╗╦  ╔═╗╔╗ ╔═╗╦  ╦ ╦ ╦
+                                            ║║║║╚═╗╠═╝║╠╦╝║║║║║ ╦   ║ ╠╦╝║ ║╚═╗ ║   ║ ╦║  ║ ║╠╩╗╠═╣║  ║ ╚╦╝
+                                            ╩╝╚╝╚═╝╩  ╩╩╚═╩╝╚╝╚═╝   ╩ ╩╚═╚═╝╚═╝ ╩   ╚═╝╩═╝╚═╝╚═╝╩ ╩╩═╝╩═╝╩ 
+*/
+/***** CS que devuelve las Dependencias - JHMM 07/01/2020 BEGIN *****/
+
+/*** Buscar por Sigla ***/
+def getByID(String id) {    
+    def sqlCode = """SELECT Sigla, Nombre
+                     FROM Z_COR_Dependencias
+                     WHERE Sigla = '${id}' 
+                     ORDER BY Orden
+                  """
+    Boolean cursorEnabled = false 
+    Boolean transactionEnabled = false
+    Integer recordLimit = 1
+    def result = sql.runSQLFast(sqlCode,  cursorEnabled,  transactionEnabled,  recordLimit).rows.collect{
+          [ id:it.Sigla, text:it.Nombre, desc:"", image:"${img}empty.gif" ]
+    }
+    
+    if(result){    
+        return result[0]
+    }
+    else{
+        return []
+    }
+}
+
+
+/*** Retorna Todo o busca por el termino de busqueda ***/
+def getAll(String searchTerm, String nivel, String siglaForan) {
+    String cond1 = "", cond2 = "", cond3 = ""
+    if(searchTerm){
+    	cond1 = "AND (UPPER(Sigla) LIKE UPPER('%${searchTerm}%') OR UPPER(Nombre) LIKE UPPER('%${searchTerm}%'))"
+    }
+
+    if(nivel){
+    	cond2 = "AND NivelJerarquico IN (${nivel})"
+    }
+
+    if(siglaForan){
+    	cond3 = "AND SiglaForanea = '${siglaForan}' "
+    }
+    
+    def sqlCode = """SELECT Sigla, Nombre
+                     FROM Z_COR_Dependencias
+                     WHERE 1=1
+                     ${cond1}
+                     ${cond2}
+                     ${cond3}
+                     ORDER BY Orden
+                  """
+    Boolean cursorEnabled = false 
+    Boolean transactionEnabled = false
+    Integer recordLimit = 1
+    def result = sql.runSQLFast(sqlCode,  cursorEnabled,  transactionEnabled,  recordLimit).rows.collect{
+        [ id:it.Sigla, text:it.Nombre, desc:"", image:"${img}empty.gif" ]}
+    return result
+}
+
+/*** Código Principal ***/
+try{
+        
+    if(params.id){
+    	result = getByID(params.id)
+    } else {
+        result = getAll(params.term, params.nivel, params.siglaForan)
+    }
+    json(result)
+
+} catch(e) {
+	log.error("Error Parámeros: CS Dependencias: ", e)
+}
