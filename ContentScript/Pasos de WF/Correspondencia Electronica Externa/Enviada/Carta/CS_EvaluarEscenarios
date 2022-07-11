@@ -1,0 +1,84 @@
+/*
+████████╗███████╗ ██████╗██╗  ██╗███████╗██████╗  ██████╗ ███████╗    ████████╗███████╗ █████╗ ███╗   ███╗
+╚══██╔══╝██╔════╝██╔════╝██║  ██║██╔════╝██╔══██╗██╔════╝ ██╔════╝    ╚══██╔══╝██╔════╝██╔══██╗████╗ ████║
+   ██║   █████╗  ██║     ███████║█████╗  ██║  ██║██║  ███╗█████╗         ██║   █████╗  ███████║██╔████╔██║
+   ██║   ██╔══╝  ██║     ██╔══██║██╔══╝  ██║  ██║██║   ██║██╔══╝         ██║   ██╔══╝  ██╔══██║██║╚██╔╝██║
+   ██║   ███████╗╚██████╗██║  ██║███████╗██████╔╝╚██████╔╝███████╗       ██║   ███████╗██║  ██║██║ ╚═╝ ██║
+   ╚═╝   ╚══════╝ ╚═════╝╚═╝  ╚═╝╚══════╝╚═════╝  ╚═════╝ ╚══════╝       ╚═╝   ╚══════╝╚═╝  ╚═╝╚═╝     ╚═╝
+                                            ╦╔╗╔╔═╗╔═╗╦╦═╗╦╔╗╔╔═╗  ╔╦╗╦═╗╦ ╦╔═╗╔╦╗  ╔═╗╦  ╔═╗╔╗ ╔═╗╦  ╦ ╦ ╦
+                                            ║║║║╚═╗╠═╝║╠╦╝║║║║║ ╦   ║ ╠╦╝║ ║╚═╗ ║   ║ ╦║  ║ ║╠╩╗╠═╣║  ║ ╚╦╝
+                                            ╩╝╚╝╚═╝╩  ╩╩╚═╩╝╚╝╚═╝   ╩ ╩╚═╚═╝╚═╝ ╩   ╚═╝╩═╝╚═╝╚═╝╩ ╩╩═╝╩═╝╩ 
+*/
+/***** CS para evaluar el caso de solicitud y mapear atributos del WF - LPA 10/02/2020 BEGIN *****/
+
+//Obtener datos del WF y el Form
+def WFStatus = workflow.getWorkflowStatus(workID, subWorkID)
+def WFAttributes = WFStatus.getAttributes()
+def form = forms.getWorkFlowFormDirect(WFStatus, "Form")
+def WFAtRev = WFAttributes.data."Revisor"
+def WFAtCopInt = WFAttributes.data."CopiaInternos"
+def WFAtCopExt = WFAttributes.data."CopiaExternos"
+def conCopiaInt = []
+def conCopiaExt = []
+
+//Limpiar Revisores
+for(int i=0; i<WFAtRev.size(); i++){
+    WFAtRev[i] = null
+    WFStatus.updateData()
+}
+
+//Limpiar Copiados internos
+for(int i=0; i<WFAtCopInt.size(); i++){
+    WFAtCopInt[i] = null
+    WFStatus.updateData()
+}
+//Limpiar Copiados externos
+for(int i=0; i<WFAtCopExt.size(); i++){
+    WFAtCopExt[i] = null
+    WFStatus.updateData()
+}
+
+//Obtener usuarios copia interno 
+for(int i=0; i<form.ccint.size(); i++){
+    if(!form.ccint[i].value.isEmpty()){
+        conCopiaInt.add(users.getUserById(form.ccint[i].value as long).email)
+    }
+}
+
+//Obtener usuarios copia externo 
+for(int i=0; i<form.ccext.size(); i++){
+    if(!form.ccext[i].correo.value.isEmpty()){
+        conCopiaExt.add(form.ccext[i].correo.value)
+    }
+}
+
+
+//Mapear usuarios en copia interno al atributo del WF
+conCopiaInt = conCopiaInt.unique()
+for(int i=0; i<conCopiaInt.size(); i++){
+    WFAtCopInt[i] = conCopiaInt[i] 
+    WFStatus.updateData()
+}
+
+//Mapear usuarios en copia externo al atributo del WF
+conCopiaExt = conCopiaExt.unique()
+for(int i=0; i<conCopiaExt.size(); i++){
+    WFAtCopExt[i] = conCopiaExt[i] 
+    WFStatus.updateData()
+}
+
+//Mapear usuarios revisores al atributo del WF
+if(form.revisor.size() == 1 && form.revisor[0].usuario.value.isEmpty()){
+    form.estado.value = "Aprobación"
+    forms.updateWorkFlowFormDirect(WFStatus, "Form", form)
+    return "Error"
+}else{
+	for(int i=0; i<form.revisor.size(); i++){
+        WFAtRev[i] = form.revisor[i].usuario.value as long
+        WFStatus.updateData()
+	}
+    form.estado.value = "Revisión"
+    forms.updateWorkFlowFormDirect(WFStatus, "Form", form)
+    return "Success"
+}
+/***** CS para evaluar el caso de solicitud y mapear atributos del WF - LPA 10/02/2020 END *****/
