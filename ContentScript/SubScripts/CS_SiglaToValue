@@ -1,0 +1,59 @@
+/*
+████████╗███████╗ ██████╗██╗  ██╗███████╗██████╗  ██████╗ ███████╗    ████████╗███████╗ █████╗ ███╗   ███╗
+╚══██╔══╝██╔════╝██╔════╝██║  ██║██╔════╝██╔══██╗██╔════╝ ██╔════╝    ╚══██╔══╝██╔════╝██╔══██╗████╗ ████║
+   ██║   █████╗  ██║     ███████║█████╗  ██║  ██║██║  ███╗█████╗         ██║   █████╗  ███████║██╔████╔██║
+   ██║   ██╔══╝  ██║     ██╔══██║██╔══╝  ██║  ██║██║   ██║██╔══╝         ██║   ██╔══╝  ██╔══██║██║╚██╔╝██║
+   ██║   ███████╗╚██████╗██║  ██║███████╗██████╔╝╚██████╔╝███████╗       ██║   ███████╗██║  ██║██║ ╚═╝ ██║
+   ╚═╝   ╚══════╝ ╚═════╝╚═╝  ╚═╝╚══════╝╚═════╝  ╚═════╝ ╚══════╝       ╚═╝   ╚══════╝╚═╝  ╚═╝╚═╝     ╚═╝
+                                            ╦╔╗╔╔═╗╔═╗╦╦═╗╦╔╗╔╔═╗  ╔╦╗╦═╗╦ ╦╔═╗╔╦╗  ╔═╗╦  ╔═╗╔╗ ╔═╗╦  ╦ ╦ ╦
+                                            ║║║║╚═╗╠═╝║╠╦╝║║║║║ ╦   ║ ╠╦╝║ ║╚═╗ ║   ║ ╦║  ║ ║╠╩╗╠═╣║  ║ ╚╦╝
+                                            ╩╝╚╝╚═╝╩  ╩╩╚═╩╝╚╝╚═╝   ╩ ╩╚═╚═╝╚═╝ ╩   ╚═╝╩═╝╚═╝╚═╝╩ ╩╩═╝╩═╝╩ 
+*/
+//Retorna el valor de una sigla a partir de la sigla, tipo y tabla JHMM 17/01/2019
+
+//variables que reciben los parámetros desde el presubmit del formulario
+def tabla = args[0]
+def sigla  = args[1]
+def columnaSigla = args[2]
+def columma = args[3]
+def tipo = args[4]
+//variable para retornar los resultados de la actualización del atributo
+def retVal = [:]
+
+try{
+    buscarSigla(tabla, sigla, columnaSigla, columma, tipo, retVal)
+}
+catch(e){
+    retVal.msgdesc = "Error: " + e
+	retVal.msgcode = "false"
+}
+
+//se retornan los resultados
+return retVal
+
+//función para retornar el valor equivalente a una sigla
+def buscarSigla(tabla, sigla, columnaSigla, columma, tipo, retVal){
+    def result = ""
+    def sqlCode = ""
+    if(tabla == "Parametros"){
+        sqlCode = """SELECT DescripcionLarga
+                     FROM Z_COR_Parametros
+                     WHERE Sigla = '${sigla}' AND Tipo = '${tipo}'
+                  """
+        result = sql.runSQLFast(sqlCode,  false, false,  0).rows.get(0).get("DescripcionLarga")
+    } else if(tabla == "Usuario"){
+        result = users.getUserById(sigla as long).firstName
+        if(users.getUserById(sigla as long).lastName != null){
+            result += " " + users.getUserById(sigla as long).lastName
+        }
+    } else {
+        sqlCode = """SELECT ${columma}
+                     FROM ${tabla}
+                     WHERE ${columnaSigla} = '${sigla}'
+                  """
+        result = sql.runSQLFast(sqlCode,  false, false,  0).rows.get(0).get(columma)
+    }
+    retVal.msgdesc = "Sigla Obtenida"
+    retVal.msgcode = "true"
+    retVal.result = result
+}
