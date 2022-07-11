@@ -1,0 +1,534 @@
+/*
+████████╗███████╗ ██████╗██╗  ██╗███████╗██████╗  ██████╗ ███████╗    ████████╗███████╗ █████╗ ███╗   ███╗
+╚══██╔══╝██╔════╝██╔════╝██║  ██║██╔════╝██╔══██╗██╔════╝ ██╔════╝    ╚══██╔══╝██╔════╝██╔══██╗████╗ ████║
+   ██║   █████╗  ██║     ███████║█████╗  ██║  ██║██║  ███╗█████╗         ██║   █████╗  ███████║██╔████╔██║
+   ██║   ██╔══╝  ██║     ██╔══██║██╔══╝  ██║  ██║██║   ██║██╔══╝         ██║   ██╔══╝  ██╔══██║██║╚██╔╝██║
+   ██║   ███████╗╚██████╗██║  ██║███████╗██████╔╝╚██████╔╝███████╗       ██║   ███████╗██║  ██║██║ ╚═╝ ██║
+   ╚═╝   ╚══════╝ ╚═════╝╚═╝  ╚═╝╚══════╝╚═════╝  ╚═════╝ ╚══════╝       ╚═╝   ╚══════╝╚═╝  ╚═╝╚═╝     ╚═╝
+                                            ╦╔╗╔╔═╗╔═╗╦╦═╗╦╔╗╔╔═╗  ╔╦╗╦═╗╦ ╦╔═╗╔╦╗  ╔═╗╦  ╔═╗╔╗ ╔═╗╦  ╦ ╦ ╦
+                                            ║║║║╚═╗╠═╝║╠╦╝║║║║║ ╦   ║ ╠╦╝║ ║╚═╗ ║   ║ ╦║  ║ ║╠╩╗╠═╣║  ║ ╚╦╝
+                                            ╩╝╚╝╚═╝╩  ╩╩╚═╩╝╚╝╚═╝   ╩ ╩╚═╚═╝╚═╝ ╩   ╚═╝╩═╝╚═╝╚═╝╩ ╩╩═╝╩═╝╩ 
+*/
+/***** CS para modificar el responsable de la tarea Aceptar Comunicación, la dependencia destino y la información del formulario - JIAE 28/09/2020 BEGIN *****/
+
+import java.util.regex.Matcher
+import java.util.regex.Pattern
+import java.text.SimpleDateFormat
+import java.util.Date
+
+//Definicion de constantes
+APC = docman.getScriptByNickname("am_correspondencia_config").getCSVars()?.app
+PERMISOS = ["SEE","SEECONTENTS"]
+wfstatus = workflow.getWorkflowStatus(workID, subWorkID)
+wfattr = wfstatus.attributes
+form = forms.getWorkFlowFormDirect(wfstatus, "Form")
+FOLDERRAD = asCSNode(form.idcarpeta.value as long)
+NOW = form.fecharadicado.valueAsDate
+
+/** Definición de variables **/
+// Definición de variables generales
+registro = null
+cargo = null
+dependencia = null
+CECO = null
+delegado = null
+delegadoDep = null
+
+//Lista de usuarios con permisos sobre el radicado, lista de gestores
+usuarios = []
+gestores = []
+
+/***************************Main Code***************************/
+
+try {
+        
+    /** Calcular valores **/
+    registro = users.getUserById(wfattr.data.Destinatario.toString() as long).name
+    cargo = users.getUserById(wfattr.data.Destinatario.toString() as long).title
+    
+    dependenciaInfo = getDep(wfattr.data.Destinatario)
+        
+    if (dependenciaInfo) {
+        dependencia = dependenciaInfo.Sigla
+        CECO = form.origencomunicado.value == "REXT" ? dependenciaInfo.CECO : ''
+    } else {
+        dependencia = ""
+        CECO = ""
+    }
+    
+    delegado = getDelegado(wfattr.data.Destinatario)
+    delegadoDep = delegado ? getDep(delegado)?.Sigla : null
+        
+    /** Actualizar formulario de WF **/
+    updateWFForm()
+           
+    /** Actualizar tabla Z **/
+    updateDataRad()
+    
+    /** Asignar al nuevo destinatario o a su delegado si tiene como responsable de la tarea **/
+    wfTask = wfstatus.tasks.find { it.title == 'Aceptar comunicación' }
+    
+    delegado ? wfTask.reassign(users.getUserById(delegado)) : wfTask.reassign(users.getUserById(wfattr.data.Destinatario.toString() as long))
+    
+    /** Aplicar cambios en la taxonomía **/
+    //Quitar permisos a la carpeta radicado
+    revocarPermisos()
+        
+    //Validar la dependencia
+    if (dependencia != "" && dependencia != wfattr.data."Dependencia destino".toString()) {
+        //Obtener el folder de la dependencia destinataria
+        folderDep = getDepFolder(getMonthFolder(getBWS()), runCS("${APC.subScripts.siglatovalue}", "Z_COR_Dependencias", "${dependencia}", "Sigla", "Nombre", "").result)  
+        
+        //Mover la carpeta a la nueva dependencia destino
+        docman.moveNode(FOLDERRAD, folderDep, null, false, true, null)
+    }
+    
+    //Heredar los permisos de la carpeta de la dependencia
+    docman.clonePermissions(FOLDERRAD.parent, FOLDERRAD)
+    
+    //Agregar permisos sobre los hijos de la carpeta radicado
+    def hijosFolderRad = []
+    
+    //Obtener hijos de la carpeta radicado
+    getChildsByID(FOLDERRAD.ID, hijosFolderRad)
+    
+    //Agregar permisos a los hijos del radicado
+    hijosFolderRad.each { it ->
+        //Heredar los permisos de la carpeta de la dependencia
+        docman.clonePermissions(FOLDERRAD.parent, it)
+    }
+        
+    modifyPermissions()
+    
+    /** Actualizar la dependencia destino del WF **/
+    wfattr.data."Dependencia destino" = dependencia
+    
+    wfstatus.updateData()
+    
+} catch(e) {
+    log.error("Error en la ejecucion de la reasignacion de destinatario CFDE", e)
+}
+
+/***************************Main Code***************************/
+
+/***************************Funciones***************************/
+
+/** Función para actualizar el formulario del WF **/
+def updateWFForm() {
+    
+    form.parausuarioint.value = wfattr.data.Destinatario
+    form.pararegistro.value = registro
+    form.paracargo.value = cargo
+    form.paradependencia.value = dependencia
+    form.paraceco.value = CECO
+    form.paradelegadoint.value = delegado ?: ''
+    form.paradelegadodep.value = delegadoDep ?: ''
+    
+    forms.updateWorkFlowFormDirect(wfstatus, "Form", form)
+}
+
+/** Función para atualizar la tabla Z por medio del procedimiento almacenado **/
+def updateDataRad() {
+    
+    //Primero estado radicado
+    
+    //Procedimiento almacenado
+    def sp =    """EXEC Z_SP_COR_ActualizarEstado @Seq = '${wfattr.data.Seq}',
+                                              @Radicado = '${form.radicado.value}',
+                                              @Estado = 'Radicado', @Destinatario = '${wfattr.data.Destinatario}',
+                                              @Cargo = '${cargo}', @Dependencia = '${dependencia}', @CECO = '${CECO}',  
+                                              @Registro = '${registro}', @Delegado = '${delegado ?: '0'}', 
+                                              @DelDependencia = '${delegadoDep ?: ''}', @Usuario = '${users.current.ID}',
+                                              @CGC = ''
+                """
+    
+    //Ejecucion del SP
+    sql.runSQL(sp, false, false, 0)
+}
+
+/** Función para aplicar nuevos permisos a la carpeta del radicado **/
+def modifyPermissions() {
+    
+    //Obtener excepciones categoría
+    excepcionesCat()
+    
+    //Obtener excepciones empresa CFR
+    excepcionesEmpresa()
+    
+    //Obtener excepciones dependencias VEX
+    excepcionesVEX()
+    
+    //Agregar permisos a la carpeta dependencia
+    addPermissionsFolderDep()
+    
+    //Agregar permisos a la carpeta radicado
+    addPermissionsFolderRad()
+    
+    //Agregar metadatos de la categoria correspodencia
+    addMetadataCor()
+}
+
+/** Función para obtener delegado **/
+def getDelegado(userID) {
+    
+    def query = """SELECT UD.AsignadoA
+                   FROM Z_COR_UsuariosDelegados UD
+                   INNER JOIN KUAF KU ON (KU.ID = UD.AsignadoA) AND KU.Deleted = 0 AND KU.Type = 0
+                   WHERE UD.Activo = 1 
+                   AND UD.UsuarioDelegado = ${userID}
+                """
+    
+    def result = sql.runSQLFast(query, false, false, 0).rows
+    
+    return (result.size() > 0) ? result.get(0).AsignadoA : null
+}
+
+/** Función para obtener la dependencia y CECO de un usuario **/
+def getDep(userID) {    
+    //Obtener la dependencia del usuario
+    def result = runCS("${APC.subScripts.userDepend}", "${userID}").result
+    
+    return (result.size() > 0) ? result.get(0) : null
+}
+
+/** Función para obtener la zona de negocio donde se almacena la comunicación **/
+def getBWS(){
+    //Obtener BW del Año
+    def bw
+    bw = docman.getNodeByPath(asCSNode(APC.constants.correcibida), "${NOW.format('yyyy')}")
+    //Si no existe, crearlo
+    if(!bw) {
+        bw = docman.copyNode(asCSNode(APC.constants.templatecorrec), asCSNode(APC.constants.correcibida), "${NOW.format('yyyy')}", false, null, false, true, false, false)
+        bw."Comunicaciones"."Año" = "${NOW.format('yyyy')}"
+        bw.update()
+    }
+    
+    return asCSNode(-bw.ID as long)
+}
+
+/** Función para obtener la carpeta del mes dentro de la ZN **/
+def getMonthFolder(BWS) {
+    
+    //Obtener carpeta en formato "#MM MMMM"
+    SimpleDateFormat dateFormat = new SimpleDateFormat("MMMM", new Locale("es", "ES"))
+    String month = dateFormat.format(form.fecharadicado.valueAsDate).toString()
+    String mes = "${form.fecharadicado.valueAsDate.format('MM')}" + " " + month.substring(0, 1).toUpperCase() + month.substring(1);
+    
+    return docman.getNodeByPath(BWS, mes)
+}
+
+/** Función para obtener la carpeta dependencia en el mes **/
+def getDepFolder(fMes, dep) {
+    //Obtener la carpeta de la dependencia
+    def folder = docman.getNodeByName(fMes, dep)    
+    
+    //Si no existe crearlo
+    if(!folder){
+        folder = docman.createFolder(fMes, dep)
+    }
+    
+    return folder
+}
+
+/** Función para remover permisos de la carpeta radicado **/
+def revocarPermisos() {
+    
+    def list = []
+    
+    //Obtener miembros de la carpeta radicado
+    docman.getRights(FOLDERRAD).ACLRights.each { it->
+        list.add(users.getMemberById(it.rightID))
+    }
+
+    //Remover los permisos
+    docman.revokeRights(FOLDERRAD, list)
+    
+    //Remover permisos sobre los hijos de la carpeta radicado
+    def hijosFolderRad = []
+    
+    getChildsByID(form.idcarpeta.value, hijosFolderRad)
+    
+    hijosFolderRad.each {
+        docman.revokeRights(it, list)
+    }
+}
+
+/** Función para obtener las excepciones categoría **/
+def excepcionesCat() {
+    if(!form.categoriaasunto.value.isEmpty()) {
+        def query = """SELECT (SELECT STRING_AGG (Destinatario, ';') FROM Z_COR_Excepciones WHERE Seq = ex.Seq) AS 'Destinatario'
+                           FROM Z_COR_Excepciones ex
+                           WHERE ex.Activo = 1 AND ex.RowSeqNum = 1
+                           AND ex.Excepciones = '${form.categoriaasunto.value}'
+                        """
+        def resultQuery = sql.runSQLFast(query, false, false, 0).rows
+        if (resultQuery.size() > 0) {
+            addUsers(resultQuery)
+        }
+    }
+}
+
+/** Función para obtener las excepciones Empresa CFR **/
+def excepcionesEmpresa() {
+    
+    //Evaluar tipo de origen
+    if(form.origencomunicado.value == "REXT") {
+        if(!form.deempresa.value.isEmpty()) {
+            def query = """SELECT (SELECT STRING_AGG (Destinatario, ';') FROM Z_COR_ExcepcionesEmpresa WHERE Seq = em.Seq) AS 'Destinatario'
+                           FROM Z_COR_ExcepcionesEmpresa em
+                           WHERE em.Activo = 1 AND em.RowSeqNum = 1
+                           AND em.Empresa = '${form.deempresa.value}'
+                        """
+            def resultQuery = sql.runSQLFast(query, false, false, 0).rows
+            if(resultQuery.size() > 0) {
+                addUsers(resultQuery)
+            }
+        }
+    }
+}
+
+/** Función para obtener usuarios dependencias VEX **/
+def excepcionesVEX() {
+    
+    def listDep = getDependencias()
+    
+    def query = """SELECT (SELECT STRING_AGG(Destinatario,';') FROM Z_COR_DependenciasVEX WHERE Seq = VEX.Seq) AS Destinatario
+                   FROM Z_COR_DependenciasVEX AS VEX
+                   WHERE VEX.Dependencia IN (${listDep})
+                   AND Activo = 1
+                """
+    
+    def resultQuery = sql.runSQLFast(query, false, false, 0).rows
+    
+    if(resultQuery.size() > 0) {
+        addUsers(resultQuery)
+    }
+    
+}
+
+/** Función para agregar permisos a la carpeta dependencia **/
+def addPermissionsFolderDep() {
+    //Folder dependencia
+    def folderDep = docman.getNode(FOLDERRAD.parentID)
+    
+    //Obtener el grupo gestor de la dependencia principal
+    def result = runCS("${APC.subScripts.siglatovalue}", "Z_COR_Dependencias", "${form.paradependencia.value}", "Sigla", "Grupo", "").result
+    //Validar resultados
+    if(result) {
+        def groupDepGID = users.getGroupByName("${users.getGroupById(result as long).displayName}_Gestores")         
+        gestores.add(groupDepGID) 
+    }
+            
+    //Agregar permisos al folderdep y al folderrad
+    docman.grantRights(folderDep, gestores.unique(), PERMISOS)
+    docman.grantRights(FOLDERRAD, gestores.unique(), PERMISOS)
+}
+
+/** Función para agregar permisos a la carpeta radicado  **/
+def addPermissionsFolderRad() {
+    
+    //Evaluar origen comunicado
+    if(form.origencomunicado.value == "INT") {
+        //Agregar el usuario remitente
+        usuarios.add(users.getMemberById(form.deusuarioint.value as long))
+        //Agregar el usuario destinatario
+        usuarios.add(users.getMemberById(form.parausuarioint.value as long))
+        //Agregar el usuario delegado
+        form.paradelegadoint.value.isEmpty() ? null : usuarios.add(users.getMemberById(form.paradelegadoint.value as long))
+     } else if(form.origencomunicado.value == "REXT") {
+        //Agregar el usuario destinatario
+        usuarios.add(users.getMemberById(form.parausuarioint.value as long))
+        //Agregar el usuario delegado
+        form.paradelegadoint.value.isEmpty() ? null : usuarios.add(users.getMemberById(form.paradelegadoint.value as long))
+     }
+
+    //Agregar el grupo del cgc radicador
+    def groupCGCID = runCS("${APC.subScripts.siglatovalue}", "Z_COR_CGC", "${form.cgc.value}", "CodigoCGC", "GrupoCGC", null ).result
+    if(groupCGCID) {
+        usuarios.add(users.getGroupById(groupCGCID as long))
+    }
+
+    //Iterar los usuarios con copia
+    for(int i=0; i<form.ccint.size(); i++) {
+        //Agregar los usuarios en copia y los usuarios delegados en copia
+        form.ccint[i].nombre.value.isEmpty() ? null : usuarios.add(users.getMemberById(form.ccint[i].nombre.value as long))
+        form.ccint[i].delegado.value.isEmpty() ? null : usuarios.add(users.getMemberById(form.ccint[i].delegado.value as long))
+    }
+
+    //Evaluar si el comunicado es confidencial
+    if(form.confidencial.value == "true") {
+       
+        //Remover permisos al grupo gestor del usuario destintario en la caperta radicado
+        docman.revokeRights(FOLDERRAD, gestores.unique())
+        
+        //Remover permisos sobre los hijos de la carpeta radicado
+        def hijosFolderRad = []
+        
+        getChildsByID(form.idcarpeta.value, hijosFolderRad)
+        
+        hijosFolderRad.each {
+            docman.revokeRights(it, gestores.unique())
+        }
+
+    } else {
+
+        //Obtener el grupo gestor del usuario remitente
+        if(form.origencomunicado.value == "INT") {
+            def groupDepID = runCS("${APC.subScripts.siglatovalue}", "Z_COR_Dependencias", "${form.dedependencia.value}", "Sigla", "Grupo", null ).result
+            def groupDepGID = users.getGroupByName("${users.getGroupById(groupDepID as long).displayName}_Gestores")         
+            usuarios.add(groupDepGID)
+        }
+        
+        //Obtener los grupos gestores de las dependencias de los con copia internos
+        for(int i=0; i<form.ccint.size(); i++) {
+            if(!form.ccint[i].dependencia.value.isEmpty()){
+                resultCC = runCS("${APC.subScripts.siglatovalue}", "Z_COR_Dependencias", "${form.ccint[i].dependencia.value}", "Sigla", "Grupo", "").result 
+                if(resultCC) {
+                    def groupDepCC = users.getGroupByName("${users.getGroupById(resultCC as long).displayName}_Gestores")         
+                    usuarios.add(groupDepCC) 
+                }
+            }
+        }
+        
+        //Obtener los grupos gestores de los delegados en copia interna
+        for(int i=0; i<form.ccint.size(); i++) {
+            if(!form.ccint[i].delegadodep.value.isEmpty()) {
+                resultCC = runCS("${APC.subScripts.siglatovalue}", "Z_COR_Dependencias", "${form.ccint[i].delegadodep.value}", "Sigla", "Grupo", "").result 
+                if(resultCC) {
+                    def groupDepCC = users.getGroupByName("${users.getGroupById(resultCC as long).displayName}_Gestores")  
+                    usuarios.add(groupDepCC)
+                }
+            }
+        }
+
+        //Grupo gestor delegado destinatario
+        if(!form.paradelegadodep.value.isEmpty()) {
+            def result = runCS("${APC.subScripts.siglatovalue}", "Z_COR_Dependencias", "${form.paradelegadodep.value}", "Sigla", "Grupo", "").result
+            def groupDepDelegado = users.getGroupByName("${users.getGroupById(result as long).displayName}_Gestores")         
+            usuarios.add(groupDepDelegado)
+        } 
+        
+        //Grupo gestor delegado remitente
+        if(!form.dedelegadodep.value.isEmpty()) {
+            def result = runCS("${APC.subScripts.siglatovalue}", "Z_COR_Dependencias", "${form.dedelegadodep.value}", "Sigla", "Grupo", "").result
+            def groupDepDelegado = users.getGroupByName("${users.getGroupById(result as long).displayName}_Gestores")         
+            usuarios.add(groupDepDelegado)
+        }
+    }
+    
+    //Agregar permisos
+    docman.grantRights(FOLDERRAD, usuarios.unique(), PERMISOS)
+    
+    //Agregar permisos sobre los hijos de la carpeta radicado
+    def hijosFolderRad = []
+    
+    //Obtener hijos de la carpeta radicado
+    getChildsByID(FOLDERRAD.ID, hijosFolderRad)
+    
+    //Agregar permisos a los hijos del radicado
+    hijosFolderRad.each { it ->
+        docman.grantRights(it, usuarios.unique(), PERMISOS)
+        
+        //Evaluar confidencial para agregar grupo gestor
+        if(form.confidencial.value == "false") {
+            docman.grantRights(it, gestores.unique(), PERMISOS)
+        }
+    }
+}
+
+/** Agregar metadatos de correspondencia al folder radicado **/
+def addMetadataCor() {
+    
+    if(form.origencomunicado.value == "INT") {
+        //Metadatos categoria CFI
+        def dependencia = runCS("${APC.subScripts.siglatovalue}", "Z_COR_Dependencias", "${form.paradependencia.value}", "Sigla", "Nombre", null ).result
+        FOLDERRAD."Correspondencia Física Interna"."Dependencia destino" = dependencia
+        FOLDERRAD."Correspondencia Física Interna"."Destinatario" = form.parausuarioint.value
+        
+    } else if(form.origencomunicado.value == "REXT") {
+        //Metadatos categoria CFE
+        def dependencia = runCS("${APC.subScripts.siglatovalue}", "Z_COR_Dependencias", "${form.paradependencia.value}", "Sigla", "Nombre", null ).result
+        FOLDERRAD."Correspondencia Física Recibida"."Dependencia destino" = dependencia.trim()
+        FOLDERRAD."Correspondencia Física Recibida"."Destinatario" = form.parausuarioint.value
+    }
+    
+    //Actualizar la categoria
+    FOLDERRAD.update()
+}
+
+
+/***************************Funciones***************************/
+
+/******************************Utils BEGIN******************************/
+
+/** Funcion para obtener documentos y agregarlos a la lista **/
+def getChildsByID(folderID, listFiles) {
+    
+    docman.getNode(folderID as long).getChildren().each {
+        it.subtype == 144 ? listFiles.add(it) : listFiles.add(it); getChildsByID(it.ID, listFiles);
+    }
+}
+
+/** Funcion para guardar la lista de correos excepciones **/
+def addUsers(result) {
+    
+    //Iterar el result
+    result.each { row->
+        
+        //Agregar usuarios a la lista
+        def destinatarios = row.get("Destinatario")?.split(";")
+        if (destinatarios) {
+            
+            destinatarios.each { it ->
+                usuarios.add(users.getUserById(it as long))
+            }
+        }       
+    }
+}
+
+/** Funcion para obtener las dependencias **/
+def getDependencias() {
+    
+    def listDep = []
+    
+    //Agregar dependencia destinatario
+    !form.paradependencia.value.isEmpty() ? listDep.add(form.paradependencia.value) : null
+    
+    //Agregar dependencia delegado destinatario
+    !form.paradelegadodep.value.isEmpty() ? listDep.add(form.paradelegadodep.value) : null
+    
+    //Agregar dependencia del remitente
+    !form.dedependencia.value.isEmpty() ? listDep.add(form.dedependencia.value) : null
+    
+    //Agregar dependencia del delegado remitente 
+    !form.dedelegadodep.value.isEmpty() ? listDep.add(form.dedelegadodep.value) : null
+    
+    //Agregar dependencia de los usuarios cc
+    form.ccint.each{it->
+        !it.dependencia.value.isEmpty() ? listDep.add(it.dependencia.value) : null
+        !it.delegadodep.value.isEmpty() ? listDep.add(it.delegadodep.value) : null
+    }
+    
+    //Devolver string de dependencias 'DEP','DEP'
+    listDep = listDep.unique()
+    StringBuilder stringList = new StringBuilder()
+    
+    //Iterar las dependencias
+    listDep.eachWithIndex{it,i->
+        if(i<(listDep.size()-1)){
+            stringList.append("'${it}',")
+        }else{
+            stringList.append("'${it}'")
+        }
+    }
+        
+    return stringList.toString()
+}
+
+/******************************Utils END******************************/
+
+/***** CS para modificar el responsable de la tarea Aceptar Comunicación, la dependencia destino y la información del formulario - JIAE 28/09/2020 END *****/
+
+
+
+
