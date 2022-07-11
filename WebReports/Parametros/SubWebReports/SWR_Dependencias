@@ -1,0 +1,26 @@
+[LL_WEBREPORT_FORCEUTF8 /]
+<table border="1">
+    <tr>
+        <th>NOMBRE DE LA DEPENDENCIA</th>
+        <th>SIGLA</th>
+        <th>CÓDIGO</th>
+        <th>DEPENDENCIA PADRE</th>
+        <th>NIVEL JERÁRQUICO UNICO</th>
+        <th>ORDEN</th>
+        <th>CECO</th>
+        <th>GRUPO DEPENDENCIA</th>
+    </tr>
+    
+[LL_WEBREPORT_STARTROW /]
+    <tr>
+        <td>[LL_REPTAG='Nombre' /]</td>
+        <td>[LL_REPTAG='Sigla' /]</td>
+        <td>[LL_REPTAG='Codigo' /]</td>
+        <td>[LL_REPTAG='SiglaForanea' /]</td>
+        <td align="center">[LL_REPTAG='NivelJerarquico' /]</td>
+        <td>[LL_REPTAG='Orden' /]</td>
+        <td>[LL_REPTAG='CECO' /]</td>
+        <td>[LL_REPTAG='Grupo' /]</td>
+    </tr>
+[LL_WEBREPORT_ENDROW /]
+</table>
