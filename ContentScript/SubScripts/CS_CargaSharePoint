@@ -1,0 +1,298 @@
+/*
+████████╗███████╗ ██████╗██╗  ██╗███████╗██████╗  ██████╗ ███████╗    ████████╗███████╗ █████╗ ███╗   ███╗
+╚══██╔══╝██╔════╝██╔════╝██║  ██║██╔════╝██╔══██╗██╔════╝ ██╔════╝    ╚══██╔══╝██╔════╝██╔══██╗████╗ ████║
+   ██║   █████╗  ██║     ███████║█████╗  ██║  ██║██║  ███╗█████╗         ██║   █████╗  ███████║██╔████╔██║
+   ██║   ██╔══╝  ██║     ██╔══██║██╔══╝  ██║  ██║██║   ██║██╔══╝         ██║   ██╔══╝  ██╔══██║██║╚██╔╝██║
+   ██║   ███████╗╚██████╗██║  ██║███████╗██████╔╝╚██████╔╝███████╗       ██║   ███████╗██║  ██║██║ ╚═╝ ██║
+   ╚═╝   ╚══════╝ ╚═════╝╚═╝  ╚═╝╚══════╝╚═════╝  ╚═════╝ ╚══════╝       ╚═╝   ╚══════╝╚═╝  ╚═╝╚═╝     ╚═╝
+                                            ╦╔╗╔╔═╗╔═╗╦╦═╗╦╔╗╔╔═╗  ╔╦╗╦═╗╦ ╦╔═╗╔╦╗  ╔═╗╦  ╔═╗╔╗ ╔═╗╦  ╦ ╦ ╦
+                                            ║║║║╚═╗╠═╝║╠╦╝║║║║║ ╦   ║ ╠╦╝║ ║╚═╗ ║   ║ ╦║  ║ ║╠╩╗╠═╣║  ║ ╚╦╝
+                                            ╩╝╚╝╚═╝╩  ╩╩╚═╩╝╚╝╚═╝   ╩ ╩╚═╚═╝╚═╝ ╩   ╚═╝╩═╝╚═╝╚═╝╩ ╩╩═╝╩═╝╩ 
+*/
+/***** CS para cargar los archivos adjuntos a SharePoint - DGC 20/04/2020 BEGIN *****/
+import java.text.Normalizer
+
+//variables con los parametros de entrada
+def workID =  args[0]  //981266
+def subWorkID =  args[1] //981266
+def radicado = args[2] //'1-2020-ELE-OT0000590'
+def correos = args[3] //'joeharrymancera@gmail.com, moises.chica@techedgegroup.com'
+
+//variables con parametros de salida
+def result = [folder:[],files:[],share:[]]
+
+//Declaracion constantes
+app = csvars.app
+CONF = sql.runSQLFast(app.querys.conf, false, false, 0).rows.collectEntries{[(it.Sigla):it.DescripcionLarga]}
+
+/***************************************Registro EndPoints BEGIN***************************************/
+
+//Servicio para la obtención del token
+def tokenclient = csws.registerRESTClient("token", CONF.get('TokenURL').replace("@TenantId@","${CONF.get('TenantID')}"))
+tokenclient.setDefaultContentTypeHeader("application/x-www-form-urlencoded")
+
+//EndPoint principal Microsoft Graph
+def msgraphclient = csws.registerRESTClient("msgraph", "https://graph.microsoft.com/v1.0/")
+msgraphclient.defaultAcceptHeader = "application/json"
+
+/***************************************Registro EndPoints END***************************************/
+
+/***************************************Main Code BEGIN***************************************/
+try{
+    //Obtener token
+    def token = getToken()
+    
+    //Evalua si el token existe
+    if(token){
+        //Crear folder en site SharePoint
+        def folder = createFolder(token,radicado)
+        
+        //Evalua si el folder existe 
+        if(folder){
+            result.folder << folder
+            //Crear link para compartir el Folder
+            def share = shareFolder(token,folder,correos)
+            
+            //Evalua el link de share
+            if(share){
+                result.share << share
+                if(workID && subWorkID){
+                    
+                    //Cargar instancia de WorkFlow
+                    def wfstatus = workflow.getWorkflowStatus(workID as long, subWorkID as long)
+                    def wfattachment = wfstatus.attachments
+                    def anexos = docman.getNodeByName(wfattachment, "Anexos")
+                    def childs = anexos.getChildren()
+                
+                    //Iterar sobre los hijos
+                    childs.each{nodeid ->
+                        //Cargar los archivos a la carpeta Folder
+                        def file = uploadFiles(token,folder,nodeid)
+                        
+                        if(file){
+                            result.files << file
+                        }else{
+                            result.files << [msgdes:"Error cargando archivo ${nodeid.ID}"]
+                            result.files << [msgcod:false]
+                            return result
+                        }
+                    }
+                }
+            }else{
+                result.share << [msgdes:"Error obteniendo link de share"] 
+                result.share << [msgcod:false]
+                return result
+            }   
+        }else{
+            result.folder << [msgdes:"Error creando folder ${radicado}"] 
+            result.folder << [msgcod:false]
+            return result
+        }
+    }else{
+        result.msgdesc = "Error obteniendo token"
+        result.msgcode = false  
+        return result
+    }
+    
+    result.msgdesc = "Proceso completo"
+    result.msgcode = true 
+    return result
+    
+}catch(e){
+    log.error("Error al cargar adjuntos a SharePoint", e)
+    result.msgdesc = "Error general + ${e}"
+    result.msgcode = false 
+    return result
+}
+/***************************************Main Code END***************************************/
+
+/*************************************Funciones BEGIN*************************************/
+
+//Funcion para obtener token
+def getToken(){ 
+    try{
+        def response = csws.getRegisteredRESTClient("token").post(){
+            urlenc client_id:"${CONF.get('ClientID')}",scope:"https://graph.microsoft.com/.default",client_secret:"${CONF.get('ClientSecret')}",grant_type:'client_credentials'
+        }
+    
+        if(response.getStatusCode() == 200){
+            return getJson(response.getContentAsString()).access_token
+        }else{
+            return null
+        }
+    }catch(e){
+        return null
+    }
+}
+
+//Funcion para crear Folder
+def createFolder(token, radicado){
+    try{
+        def response = csws.getRegisteredRESTClient("msgraph").post(path:"/sites/${CONF.get('SiteID')}/drive/items/${CONF.get('FolderID')}/children", 
+                                                                    headers:["Authorization":"Bearer ${token}",
+                                                                             "Content-Type":"application/json",
+                                                                             "Prefer":"apiversion=2.1"]){
+            json "name":"${radicado}","folder":{},"@microsoft.graph.conflictBehavior":"rename"
+        }
+        
+        if(response.getStatusCode() == 201){
+            return getJson(response.getContentAsString())
+        }else{
+            return null
+        }
+    }catch(e){
+        return null
+    }
+}
+
+//Funcion para subir archivos
+def uploadFiles(token, folder, nodeid){
+    
+    log.error("nodeid: " + nodeid)
+    log.error("token: " + token)
+    log.error("folder: " + folder)
+    log.error("nodeid.content.content: " + nodeid.content.content)
+    
+    File file = nodeid.content.content    
+    
+    //Parsing nombre
+    String name = nodeid.name
+    def text = Normalizer.normalize(name, Normalizer.Form.NFD)
+    name = text.replaceAll("[\\p{InCombiningDiacriticalMarks}]", "").replace(" ","_")
+    
+    //Validar si el peso es mayor a 4MB
+    if(getFileSizeMegaBytes(file) < 4){
+        try{
+            def response = csws.getRegisteredRESTClient("msgraph").put(path:"/sites/${CONF.get('SiteID')}/drive/items/${folder.id}:/${name}:/content", 
+                                                                       headers:["Authorization":"Bearer ${token}",
+                                                                                "Content-Type":"${nodeid.mimeType}"]){
+                bytes file.bytes
+            }
+            
+            if(response.getStatusCode() == 201){
+                return getJson(response.getContentAsString())
+            }else{
+                return null
+            }    
+        }catch(e){
+            return null    
+        }
+    }else{
+        def session = createUploadSession(token, nodeid, folder)
+        
+        if(session){
+            def fileupload = putUploadSession(file, session)
+            
+            if(fileupload){
+                return fileupload
+            }else{
+                return null
+            }    
+            
+        }else{
+            return null    
+        }
+    }
+}
+
+//Funcion para crear sesion de archivos mayores a 4MB
+def createUploadSession(token, nodeid, folder){
+    try{
+        //Parsing nombre
+        String name = nodeid.name
+        def text = Normalizer.normalize(name, Normalizer.Form.NFD)
+        name = text.replaceAll("[\\p{InCombiningDiacriticalMarks}]", "").replace(" ","_")
+
+        def JSON = ["item":[
+            "@microsoft.graph.conflictBehavior": "rename",
+	        "description": "description",
+	        "fileSystemInfo": ["@odata.type": "microsoft.graph.fileSystemInfo"],
+	        "name": "${name}"
+            ]
+        ]
+        
+        def response = csws.getRegisteredRESTClient("msgraph").post(path:"/drives/${folder.parentReference.driveId}/items/${folder.id}:/${name}:/createUploadSession", 
+                                                                    headers:["Authorization":"Bearer ${token}",
+                                                                             "Content-Type":"application/json",
+                                                                             "Prefer":"apiversion=2.1"]){
+            json JSON
+        }
+    
+        if(response.getStatusCode() == 200){
+            return getJson(response.getContentAsString())
+        }else{
+            return null
+        }
+    }catch(e){
+        return null
+    }
+}
+
+//Funcion para subir archivo a la sesion abierta
+def putUploadSession(file, session){
+    try{
+        def uploadclient = csws.registerRESTClient("uploadsession", "${session.uploadUrl}")
+        uploadclient.defaultAcceptHeader = "application/json"
+    
+        def response = csws.getRegisteredRESTClient("uploadsession").put(headers:["Content-Range": "bytes 0-${file.length()-1}/${file.length()}"]){
+            bytes file.bytes
+        }
+    
+        if(response.getStatusCode() == 200 || response.getStatusCode() == 201){
+            return getJson(response.getContentAsString())
+        }else{
+            return null
+        }
+    }catch(e){
+        return null
+    }
+}
+
+//Funcion para compartir el folder
+def shareFolder(token,folder,correos){
+    try{
+        def JSON = [
+            "requireSignIn": true,
+            "sendInvitation": false,
+            "roles": ["read"],
+            "recipients": [],
+            "message": ""
+        ]
+    
+        def listcorreos = correos.toString().split(",")
+    
+        listcorreos.each{correo ->
+            JSON.recipients << ["email" : "${correo}"]        
+        }
+        
+        def response = csws.getRegisteredRESTClient("msgraph").post(path:"/sites/${CONF.get('SiteID')}/drive/items/${folder.id}/invite", 
+                                                                    headers:["Authorization":"Bearer ${token}",
+                                                                             "Content-Type":"application/json"]){
+            json JSON
+        }
+    
+        if(response.getStatusCode() == 200){
+            return getJson(response.getContentAsString())
+        }else{
+            return null
+        }
+    }catch(e){
+        return null
+    }
+}
+/*************************************Funciones END*************************************/
+
+/*************************************Utils BEGIN*************************************/
+
+def getJson(text){
+    def jsonSlurper = new JsonSlurper()
+    def JSON = jsonSlurper.parseText(text)
+    return JSON
+}
+
+def getFileSizeMegaBytes(file){
+    return (double) file.length()/(1024 * 1024)
+}
+/*************************************Utils END*************************************/
+
+/***** CS para cargar los archivos adjuntos a SharePoint - DGC 20/04/2020 END *****/
