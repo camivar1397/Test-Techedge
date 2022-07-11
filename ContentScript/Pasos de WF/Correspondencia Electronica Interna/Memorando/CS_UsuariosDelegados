@@ -1,0 +1,37 @@
+/*
+████████╗███████╗ ██████╗██╗  ██╗███████╗██████╗  ██████╗ ███████╗    ████████╗███████╗ █████╗ ███╗   ███╗
+╚══██╔══╝██╔════╝██╔════╝██║  ██║██╔════╝██╔══██╗██╔════╝ ██╔════╝    ╚══██╔══╝██╔════╝██╔══██╗████╗ ████║
+   ██║   █████╗  ██║     ███████║█████╗  ██║  ██║██║  ███╗█████╗         ██║   █████╗  ███████║██╔████╔██║
+   ██║   ██╔══╝  ██║     ██╔══██║██╔══╝  ██║  ██║██║   ██║██╔══╝         ██║   ██╔══╝  ██╔══██║██║╚██╔╝██║
+   ██║   ███████╗╚██████╗██║  ██║███████╗██████╔╝╚██████╔╝███████╗       ██║   ███████╗██║  ██║██║ ╚═╝ ██║
+   ╚═╝   ╚══════╝ ╚═════╝╚═╝  ╚═╝╚══════╝╚═════╝  ╚═════╝ ╚══════╝       ╚═╝   ╚══════╝╚═╝  ╚═╝╚═╝     ╚═╝
+                                            ╦╔╗╔╔═╗╔═╗╦╦═╗╦╔╗╔╔═╗  ╔╦╗╦═╗╦ ╦╔═╗╔╦╗  ╔═╗╦  ╔═╗╔╗ ╔═╗╦  ╦ ╦ ╦
+                                            ║║║║╚═╗╠═╝║╠╦╝║║║║║ ╦   ║ ╠╦╝║ ║╚═╗ ║   ║ ╦║  ║ ║╠╩╗╠═╣║  ║ ╚╦╝
+                                            ╩╝╚╝╚═╝╩  ╩╩╚═╩╝╚╝╚═╝   ╩ ╩╚═╚═╝╚═╝ ╩   ╚═╝╩═╝╚═╝╚═╝╩ ╩╩═╝╩═╝╩ 
+*/
+/***** CS para las excepciones de asignación de comunicaciones a usuarios delegados del WF - LPA 24/01/2020 BEGIN *****/
+def WFStatus = workflow.getWorkflowStatus(workID, subWorkID)
+def WFAttributes = WFStatus.getAttributes()
+def form = forms.getWorkFlowFormDirect(WFStatus, "Form")
+def WFAtDest = WFAttributes.data."Destinatario"
+
+//actualización lista de destinatarios: comparación con tabla parametrizable usuario delegado
+for(int i=0; i<form.para.usuario.size(); i++){
+    def query = """SELECT AsignadoA
+                   FROM Z_COR_UsuariosDelegados
+                   WHERE Activo = 1 
+                   AND UsuarioDelegado = ${form.para[i].usuario.value}
+                """
+    def resultQuery = sql.runSQLFast(query, false, false, 1).rows
+    if(resultQuery.size() > 0){
+        for(int j=0; j<WFAtDest.size(); j++){
+            if(form.para[i].usuario.value.toString() == WFAtDest[j].toString()){
+                WFAtDest[j] = resultQuery.get(0).get('AsignadoA') as long
+                WFStatus.updateData()
+            }
+        }
+    }
+    
+}
+/***** CS para las excepciones de asignación de comunicaciones a usuarios delegados del WF - LPA 24/01/2020 END *****/
+
