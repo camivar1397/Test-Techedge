@@ -1,0 +1,17 @@
+[LL_WEBREPORT_FORCEUTF8 /]
+<table border="1">
+    <tr>
+        <th>Nombre de ciudad</th>
+        <th>ID</th>
+        <th>País</th>
+        <th>Orden</th>
+    </tr>
+[LL_WEBREPORT_STARTROW /]
+    <tr>
+        <td>[LL_REPTAG='Ciudad' /]</td>
+        <td>[LL_REPTAG='Seq' /]</td>
+        <td>[LL_REPTAG='Pais' /]</td>
+        <td>[LL_REPTAG='Orden' /]</td>
+    </tr>
+[LL_WEBREPORT_ENDROW /]
+</table>
