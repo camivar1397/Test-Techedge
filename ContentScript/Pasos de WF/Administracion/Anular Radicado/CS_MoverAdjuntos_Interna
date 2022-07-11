@@ -1,0 +1,198 @@
+/*
+████████╗███████╗ ██████╗██╗  ██╗███████╗██████╗  ██████╗ ███████╗    ████████╗███████╗ █████╗ ███╗   ███╗
+╚══██╔══╝██╔════╝██╔════╝██║  ██║██╔════╝██╔══██╗██╔════╝ ██╔════╝    ╚══██╔══╝██╔════╝██╔══██╗████╗ ████║
+   ██║   █████╗  ██║     ███████║█████╗  ██║  ██║██║  ███╗█████╗         ██║   █████╗  ███████║██╔████╔██║
+   ██║   ██╔══╝  ██║     ██╔══██║██╔══╝  ██║  ██║██║   ██║██╔══╝         ██║   ██╔══╝  ██╔══██║██║╚██╔╝██║
+   ██║   ███████╗╚██████╗██║  ██║███████╗██████╔╝╚██████╔╝███████╗       ██║   ███████╗██║  ██║██║ ╚═╝ ██║
+   ╚═╝   ╚══════╝ ╚═════╝╚═╝  ╚═╝╚══════╝╚═════╝  ╚═════╝ ╚══════╝       ╚═╝   ╚══════╝╚═╝  ╚═╝╚═╝     ╚═╝
+                                            ╦╔╗╔╔═╗╔═╗╦╦═╗╦╔╗╔╔═╗  ╔╦╗╦═╗╦ ╦╔═╗╔╦╗  ╔═╗╦  ╔═╗╔╗ ╔═╗╦  ╦ ╦ ╦
+                                            ║║║║╚═╗╠═╝║╠╦╝║║║║║ ╦   ║ ╠╦╝║ ║╚═╗ ║   ║ ╦║  ║ ║╠╩╗╠═╣║  ║ ╚╦╝
+                                            ╩╝╚╝╚═╝╩  ╩╩╚═╩╝╚╝╚═╝   ╩ ╩╚═╚═╝╚═╝ ╩   ╚═╝╩═╝╚═╝╚═╝╩ ╩╩═╝╩═╝╩ 
+*/
+
+/***** CS para crear carpeta radicado y mover los adjuntos del WF de Correspondencia - LPA 27/01/2020 BEGIN*****/
+import java.text.SimpleDateFormat
+
+//*** Variables
+Date fecha = new Date()
+String folderNomAn = "Soporte Anulacion"
+
+// Variables WF Anular radicado
+def WFStatus = workflow.getWorkflowStatus(workID, subWorkID)
+def adjuntosWF = WFStatus.getAttachmentsFolder()
+def form = forms.getWorkFlowFormDirect(WFStatus, "Form")
+
+//Variables WF Memorandos
+def WFSRadicado = workflow.getWorkflowStatus(form.workid.value as long)
+def workflowattrsR = WFSRadicado.attributes
+def adjuntosWFR = WFSRadicado.getAttachmentsFolder()
+def formRadicado = forms.getWorkFlowFormDirect(WFSRadicado, "Form")
+
+//Evaluar si el campo radicado se encuentra vacío
+if(!formRadicado.radicado.value.isEmpty()){
+    Date fecharadicado = formRadicado.fecharadicado.valueAsDate
+//*** Obtengo estado del Workflow
+    try{
+		//Cargar APP del proceso
+		apc = docman.getScriptByNickname("am_correspondencia_config").getCSVars()?.app
+	  
+		//Obtener BW del Año
+		def BW = docman.getNodeByPath(asCSNode(apc.constants.correcibida), "${fecha.format('yyyy')}")   
+          
+		//Si no existe, crearlo
+		if(BW == null){
+            BW = docman.copyNode(asCSNode(apc.constants.templatecorrec), asCSNode(apc.constants.correcibida), "${fecha.format('yyyy')}", false, null, false, true, false, false)
+			BW."Comunicaciones"."Año" = "${fecha.format('yyyy')}"
+			BW.update()
+			BW =  asCSNode(-BW.ID as long)
+		}else{
+			 BW = asCSNode(-BW.ID as long)
+		}
+		
+		//Buscar el mes en el BW
+		CSNode folderMes = FindMonth(BW, fecharadicado)
+		
+		//Buscar la carpeta de la dependencia
+		CSNode folderDep = FindFolderDependence(folderMes, formRadicado.dependencia.value, formRadicado)
+		
+		//Crear el folder del radicado, agregar categoria, habilitar herencia
+		def folderrad = docman.getNodeByPath(folderDep, "${formRadicado.radicado.value}")
+		        
+        if(folderrad == null){
+            folderrad = docman.createFolder(folderDep, "${formRadicado.radicado.value}")
+            docman.addCategory(folderrad, docman.getCategory(docman.getCategoryWS(), "Gestión de Correspondencia:Radicación"))
+            docman.addCategory(folderrad, docman.getCategory(docman.getCategoryWS(), "Gestión de Correspondencia:Correspondencia Interna"))
+            docman.setCategoryInheritance(folderrad, "Radicación", true)
+            docman.setCategoryInheritance(folderrad, "Correspondencia Interna", true)
+        }
+		
+		//Agregar Metadatos al folder del radicado
+		AddMatadata(folderrad, formRadicado, form, workflowattrsR)
+		
+        //Mover los adjuntos WF Memorando
+        adjuntosWFR.getChildren().each{Node ->
+            docman.moveNode(Node, folderrad, null, false, true, null)
+        }
+		
+		//Crear el folder de anulación de radicado
+        def foldAnulado = docman.getNodeByPath(folderrad, folderNomAn)
+    
+        if(foldAnulado == null){
+            foldAnulado = docman.createFolder(folderrad, folderNomAn)
+         }
+        
+        //Mover los adjuntos WF Anular Radicado
+		adjuntosWF.getChildren().each{Node ->
+			docman.moveNode(Node, foldAnulado, null, false, true, null)
+		}
+        
+        //Actualizar ID de la carpeta del radicado
+        formRadicado.idcarpeta.value = folderrad.ID
+        forms.updateWorkFlowFormDirect(WFSRadicado,"Form", formRadicado)
+		
+	}catch(e){
+		log.error("Error CS:${self.ID} -> consultando informacion del WF: ${workID}", e)
+	}
+}
+
+/***** CS para crear carpeta radicado y mover los adjuntos del WF de Correspondencia - LPA 27/01/2020 END*****/
+
+/***** Funciones BEGIN *****/
+
+//*** Inicio de buscar carpeta de mes dentro del año
+
+CSNode FindMonth(CSNode BW, Date fecharadicado){
+    try{
+        SimpleDateFormat dateFormat = new SimpleDateFormat("MMMM", new Locale("es", "ES"))
+        String month = dateFormat.format(fecharadicado).toString()
+        String mes = "${fecharadicado.format('MM')}" + " " + month.substring(0, 1).toUpperCase() + month.substring(1);
+        def folder = docman.getNodeByPath(BW, mes)
+        return folder
+    }
+    catch(e){
+        log.error("Error CS ${self.ID} al buscar folder del mes ${formRadicado.radicado.value} :" , e)
+        return false
+    }
+}
+//*** Fin de buscar carpeta de mes dentra del año
+
+//*** inicio de buscar carpeta dependencia
+
+CSNode FindFolderDependence(CSNode parent, String namefolder, formRadicado){
+    //Cargar APP del proceso
+    apc = docman.getScriptByNickname("am_correspondencia_config").getCSVars()?.app
+    
+    try{
+        def folderDep = docman.getNodeByPath(parent, "${namefolder}")
+    
+        //Crear la carpeta dependencia si no existe
+        if(folderDep == null){
+            
+            //Crear carpeta
+            folderDep = docman.createFolder(parent, "${namefolder}")
+            
+            //Agregar permisos de la depedencia a la carpeta
+            def groupList = []
+            
+            //Obtener el grupo gestor de la dependencia principal
+            def groupDepID = runCS("${apc.subScripts.siglatovalue}", "Z_COR_Dependencias", "${formRadicado.de[0].dependencia.value}", "Sigla", "Grupo", null ).result
+            def groupDepGID = users.getGroupByName("${users.getGroupById(groupDepID as long).displayName}_Gestores")         
+            groupList.add(groupDepGID)
+            docman.grantRights(folderDep, groupList.unique(), ["SEE","SEECONTENTS"])
+        }
+        return folderDep
+    }
+    catch(e){
+        log.error("Error CS ${self.ID} al crear folder de dependencia", e)
+        return false
+    }
+}
+
+//*** fin de buscar carpeta de dependencia
+
+//*** inicio agregar metadatos a carpeta de radicado
+
+def AddMatadata(CSNode folder, formRadicado, form, workflowattrsR){
+    try{
+        //Cargar APP del proceso
+        apc = docman.getScriptByNickname("am_correspondencia_config").getCSVars()?.app
+        
+        folder."Radicación"."Numero de Radicado" = formRadicado.radicado.value
+        folder."Radicación"."Asunto" = formRadicado.asunto.value
+
+        String categorysubj =runCS("${apc.subScripts.siglatovalue}", "Parametros", "${formRadicado.categoriaasunto.value}", null, null, "EXC" ).result
+        folder."Radicación"."Categoria del Asunto" = categorysubj
+        folder."Radicación"."Fecha de Radicacion" = formRadicado.fecharadicado.valueAsDate
+        
+        for(int i=0; i<formRadicado.de.size(); i++){
+            folder."Correspondencia Interna"."Remitente"[i] = formRadicado.de[i].usuario.value
+        }
+        
+        for(int i=0; i<formRadicado.para.size(); i++){
+            folder."Correspondencia Interna"."Destinatario"[i] = formRadicado.para[i].usuario.value
+        }
+
+        for(int i=0; i<workflowattrsR.Copia.size(); i++){
+            if(workflowattrsR.Copia[i] != "")
+                folder."Radicación"."Copiados"[i] = workflowattrsR.Copia[i]
+        }
+        
+        folder."Correspondencia Interna"."Dependencia destino" = formRadicado.dependencia.value
+        String typeComun =runCS("${apc.subScripts.siglatovalue}", "Parametros", "${formRadicado.tipocomunicacion.value}", null, null, "TIPC" ).result
+        folder."Radicación"."Tipo de Comunicacion" = typeComun
+        folder."Radicación"."Centro de Gestion de Correspondencia" = ""
+        folder."Correspondencia Interna"."ID Caso" = formRadicado.nsigo.value
+        folder."Radicación"."Estado" = "Anulado"
+        folder."Radicación"."Usuario Modificacion" = form.usuariomodificacion.value
+        folder."Radicación"."Fecha Modificacion" = form.fechamodificacion.valueAsDate
+        folder.update()
+        return true
+    }
+    catch(e){
+        log.error("Error CS ${self.ID} al agregar metatdatos a folder del radicado ${formRadicado.radicado.value} :" , e)
+        return false
+    }
+}
+
+//*** fin agregar metadatos a carpeta de radica
+/***** Funciones END *****/
