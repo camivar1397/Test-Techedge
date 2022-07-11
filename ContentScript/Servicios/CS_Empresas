@@ -1,0 +1,78 @@
+/*
+████████╗███████╗ ██████╗██╗  ██╗███████╗██████╗  ██████╗ ███████╗    ████████╗███████╗ █████╗ ███╗   ███╗
+╚══██╔══╝██╔════╝██╔════╝██║  ██║██╔════╝██╔══██╗██╔════╝ ██╔════╝    ╚══██╔══╝██╔════╝██╔══██╗████╗ ████║
+   ██║   █████╗  ██║     ███████║█████╗  ██║  ██║██║  ███╗█████╗         ██║   █████╗  ███████║██╔████╔██║
+   ██║   ██╔══╝  ██║     ██╔══██║██╔══╝  ██║  ██║██║   ██║██╔══╝         ██║   ██╔══╝  ██╔══██║██║╚██╔╝██║
+   ██║   ███████╗╚██████╗██║  ██║███████╗██████╔╝╚██████╔╝███████╗       ██║   ███████╗██║  ██║██║ ╚═╝ ██║
+   ╚═╝   ╚══════╝ ╚═════╝╚═╝  ╚═╝╚══════╝╚═════╝  ╚═════╝ ╚══════╝       ╚═╝   ╚══════╝╚═╝  ╚═╝╚═╝     ╚═╝
+                                            ╦╔╗╔╔═╗╔═╗╦╦═╗╦╔╗╔╔═╗  ╔╦╗╦═╗╦ ╦╔═╗╔╦╗  ╔═╗╦  ╔═╗╔╗ ╔═╗╦  ╦ ╦ ╦
+                                            ║║║║╚═╗╠═╝║╠╦╝║║║║║ ╦   ║ ╠╦╝║ ║╚═╗ ║   ║ ╦║  ║ ║╠╩╗╠═╣║  ║ ╚╦╝
+                                            ╩╝╚╝╚═╝╩  ╩╩╚═╩╝╚╝╚═╝   ╩ ╩╚═╚═╝╚═╝ ╩   ╚═╝╩═╝╚═╝╚═╝╩ ╩╩═╝╩═╝╩ 
+*/
+/***** Busca las empresas de correspondencia - JHMM 10/02/2020 BEGIN *****/
+
+/*
+	Utility function to find an entry by ID in the database.
+*/
+def getByID(String id) {    
+    def sqlCode = """SELECT NIT, Nombre, CorreoElectronico 
+                     FROM Z_COR_Empresas
+                     WHERE NIT = '${id}'
+                     ORDER BY Nombre
+                  """
+    Boolean cursorEnabled = false 
+    Boolean transactionEnabled = false
+    Integer recordLimit = 1
+    def result = sql.runSQLFast(sqlCode,  cursorEnabled,  transactionEnabled,  recordLimit).rows.collect{
+          [ id:it.NIT, text:it.Nombre, desc:"${it.CorreoElectronico}", image:"${img}empty.gif" ]
+    }
+    
+    if(result){    
+        return result[0]
+    }
+    else{
+        return []
+    }
+}
+
+/*
+	Utility function to find entries in the database.
+*/
+def getAll(String searchTerm) {
+    String cond1 = ""
+    if(searchTerm){
+        cond1 = "AND (UPPER(NIT) LIKE UPPER('%${searchTerm}%') OR (UPPER(Nombre) LIKE UPPER('%${searchTerm}%') ))"
+    }
+    
+    def sqlCode = """SELECT NIT, Nombre, CorreoElectronico 
+                     FROM Z_COR_Empresas
+                     WHERE Activo = 1
+                     ${cond1}
+                     ORDER BY Nombre
+                  """
+    Boolean cursorEnabled = false 
+    Boolean transactionEnabled = false
+    Integer recordLimit = 1
+    def result = sql.runSQLFast(sqlCode,  cursorEnabled,  transactionEnabled,  recordLimit).rows.collect{
+        [ id:it.NIT, text:it.Nombre, desc:"${it.CorreoElectronico}", image:"${img}empty.gif" ]
+    }
+    return result
+}
+
+/*
+	Main code
+*/
+try{
+        
+    if(params.id){
+    	result = getByID(params.id)
+    } else {
+        result = getAll(params.term)
+    }
+    //return result
+    json(result)
+
+} catch(e) {
+	log.error("Error en Busqueda de empresas en REST service.", e)
+}
+/***** Busca todos los municipios de correspondencia - DGC 08/01/2020 END *****/
