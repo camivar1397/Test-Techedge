@@ -1,0 +1,71 @@
+/*
+████████╗███████╗ ██████╗██╗  ██╗███████╗██████╗  ██████╗ ███████╗    ████████╗███████╗ █████╗ ███╗   ███╗
+╚══██╔══╝██╔════╝██╔════╝██║  ██║██╔════╝██╔══██╗██╔════╝ ██╔════╝    ╚══██╔══╝██╔════╝██╔══██╗████╗ ████║
+   ██║   █████╗  ██║     ███████║█████╗  ██║  ██║██║  ███╗█████╗         ██║   █████╗  ███████║██╔████╔██║
+   ██║   ██╔══╝  ██║     ██╔══██║██╔══╝  ██║  ██║██║   ██║██╔══╝         ██║   ██╔══╝  ██╔══██║██║╚██╔╝██║
+   ██║   ███████╗╚██████╗██║  ██║███████╗██████╔╝╚██████╔╝███████╗       ██║   ███████╗██║  ██║██║ ╚═╝ ██║
+   ╚═╝   ╚══════╝ ╚═════╝╚═╝  ╚═╝╚══════╝╚═════╝  ╚═════╝ ╚══════╝       ╚═╝   ╚══════╝╚═╝  ╚═╝╚═╝     ╚═╝
+                                            ╦╔╗╔╔═╗╔═╗╦╦═╗╦╔╗╔╔═╗  ╔╦╗╦═╗╦ ╦╔═╗╔╦╗  ╔═╗╦  ╔═╗╔╗ ╔═╗╦  ╦ ╦ ╦
+                                            ║║║║╚═╗╠═╝║╠╦╝║║║║║ ╦   ║ ╠╦╝║ ║╚═╗ ║   ║ ╦║  ║ ║╠╩╗╠═╣║  ║ ╚╦╝
+                                            ╩╝╚╝╚═╝╩  ╩╩╚═╩╝╚╝╚═╝   ╩ ╩╚═╚═╝╚═╝ ╩   ╚═╝╩═╝╚═╝╚═╝╩ ╩╩═╝╩═╝╩ 
+*/
+//Retorna el o los CGC al que pertenece un usuario LPA 27/05/2019
+
+def getByID(String id) {   
+    def sqlCode = """SELECT CodigoCGC, Nombre 
+                     FROM Z_COR_CGC 
+                     WHERE CodigoCGC = '${id}'
+                  """
+    Boolean cursorEnabled = false 
+    Boolean transactionEnabled = false
+    Integer recordLimit = 1
+    def result = sql.runSQLFast(sqlCode,  cursorEnabled,  transactionEnabled,  recordLimit).rows.collect{
+          [ id:it.CodigoCGC, text:it.Nombre]
+    }
+    
+    if(result){    
+        return result[0]
+    }
+    else{
+        return []
+    }
+}
+
+def getAll(String searchTerm, String usuarioCGC) {
+    def result = []
+    String cond1 = ""
+    if(searchTerm){
+        cond1 = "AND ZCGC.Nombre LIKE UPPER('%${searchTerm}%')" 
+    }
+    if(usuarioCGC){
+        def sqlCode = """SELECT CodigoCGC, Nombre 
+                         FROM Z_COR_CGC ZCGC
+                         INNER JOIN KUAFChildren AS KF ON KF.ID = ZCGC.GrupoCGC
+                         WHERE KF.ChildID = '${usuarioCGC}' AND KF.ID != 1001
+                         ${cond1}
+						 ORDER BY Orden
+                      """
+        Boolean cursorEnabled = false 
+        Boolean transactionEnabled = false
+        Integer recordLimit = 1
+        
+        result = sql.runSQLFast(sqlCode,  cursorEnabled,  transactionEnabled,  recordLimit).rows.collect{
+            [ id:it.CodigoCGC, text:it.Nombre ]}
+    }
+    return result
+}
+
+/*
+	Main code
+*/
+try{
+    if(params.id){
+    	result = getByID(params.id)
+    }else{
+        result = getAll(params.term, params.usuarioCGC)
+    }
+    json(result)
+}catch(e) {
+	log.error("Error CS:${self.ID} -> convirtiendo Usuario ${usuarioCGC} en CGC: ", e)
+}
+
