@@ -1,0 +1,172 @@
+/*
+████████╗███████╗ ██████╗██╗  ██╗███████╗██████╗  ██████╗ ███████╗    ████████╗███████╗ █████╗ ███╗   ███╗
+╚══██╔══╝██╔════╝██╔════╝██║  ██║██╔════╝██╔══██╗██╔════╝ ██╔════╝    ╚══██╔══╝██╔════╝██╔══██╗████╗ ████║
+   ██║   █████╗  ██║     ███████║█████╗  ██║  ██║██║  ███╗█████╗         ██║   █████╗  ███████║██╔████╔██║
+   ██║   ██╔══╝  ██║     ██╔══██║██╔══╝  ██║  ██║██║   ██║██╔══╝         ██║   ██╔══╝  ██╔══██║██║╚██╔╝██║
+   ██║   ███████╗╚██████╗██║  ██║███████╗██████╔╝╚██████╔╝███████╗       ██║   ███████╗██║  ██║██║ ╚═╝ ██║
+   ╚═╝   ╚══════╝ ╚═════╝╚═╝  ╚═╝╚══════╝╚═════╝  ╚═════╝ ╚══════╝       ╚═╝   ╚══════╝╚═╝  ╚═╝╚═╝     ╚═╝
+                                            ╦╔╗╔╔═╗╔═╗╦╦═╗╦╔╗╔╔═╗  ╔╦╗╦═╗╦ ╦╔═╗╔╦╗  ╔═╗╦  ╔═╗╔╗ ╔═╗╦  ╦ ╦ ╦
+                                            ║║║║╚═╗╠═╝║╠╦╝║║║║║ ╦   ║ ╠╦╝║ ║╚═╗ ║   ║ ╦║  ║ ║╠╩╗╠═╣║  ║ ╚╦╝
+                                            ╩╝╚╝╚═╝╩  ╩╩╚═╩╝╚╝╚═╝   ╩ ╩╚═╚═╝╚═╝ ╩   ╚═╝╩═╝╚═╝╚═╝╩ ╩╩═╝╩═╝╩ 
+*/
+/***** CS validar dependencias VEX en copia - DGC 11/05/2020 BEGIN *****/
+
+//**** Declaracion de constantes
+APC = docman.getScriptByNickname("am_correspondencia_config").getCSVars()?.app
+WFSTATUS = workflow.getWorkflowStatus(workID, subWorkID)
+WFATTR = WFSTATUS.getAttributes()
+WFATTRCCINT = WFATTR.data.CopiaInt
+WFATTRDEPINT = WFATTR.data.DependenciaCCInt
+WFATTRDEPEXT = WFATTR.data.DependenciaCCExt
+WFATTRDEPDES = WFATTR.data.Dependencia
+
+//**** Declaracion de variables
+def depCopia = []
+def conCopia = []
+
+/******************************************Main Code BEGIN******************************************/
+try{
+
+    //Validar las dependencias de usuarios en el WF
+    validarAttrWF(conCopia, depCopia)
+    //Limpiar atributos del WF
+    limpiarccWorkflow()
+    //Validar notificaciones VEX
+    validarCopiaVex(depCopia,conCopia)
+    //Actualizar atributos del WF
+    actualizarccWorkflow(conCopia)
+    
+}catch(e){
+    log.error("Error en validar Dependencias VEX", e)
+}
+/******************************************Main Code END******************************************/
+
+/*****************************************Functions BEGIN*****************************************/
+
+//Obtener correos que se encuentran en el Atributo Copia del WF
+def validarAttrWF(conCopia,depCopia){
+    //Correos CC internos
+    for(int i=0; i<WFATTRCCINT.size(); i++){
+        if(WFATTRCCINT[i] != null){
+            conCopia.add(WFATTRCCINT[i])
+        }
+    }
+    //Dependencias CC internos
+    for(int i=0; i<WFATTRDEPINT.size(); i++){
+        if(WFATTRDEPINT[i] != null){
+            depCopia.add(WFATTRDEPINT[i])
+        }        
+    }
+    //Dependencias CC Externos
+    for(int i=0; i<WFATTRDEPEXT.size(); i++){
+        if(WFATTRDEPEXT[i] != null){
+            depCopia.add(WFATTRDEPEXT[i])
+        }   
+    }
+
+    //Dependencia Destinatario
+    if(WFATTRDEPDES != null){
+        depCopia.add(WFATTRDEPDES)
+    } 
+}
+
+//Limpiar Copiados
+def limpiarccWorkflow(){
+    for(int i=0; i<WFATTRCCINT.size(); i++){
+        WFATTRCCINT[i] = null
+        WFATTRDEPINT[i] = null
+        WFSTATUS.updateData()
+    }
+}
+
+//Validar notificaciones VEX 
+def validarCopiaVex(depCopia, conCopia){
+    for(int i=0; i<depCopia.size(); i++){
+        def result = getVexUsers(depCopia[i])
+        //Evaluar el resultado de la consulta
+        if(result.size() > 0){
+            
+            //Si hay usuarios destinatarios, agregarlos
+            if(result[0].Destinatario){
+                def tmpdest = result[0].Destinatario.split(";")
+                
+                //Recorrer los usuarios
+                for(int j=0; j<tmpdest.size(); j++){
+                    conCopia.add(users.getUserById(tmpdest[j] as long).email) 
+                }
+            }
+            
+            //Si hay usuarios por correo, agregarlos
+            if(result[0].Correo){
+                def tmpdest = result[0].Correo.split(";")
+                
+                //Recorrer los correos
+                for(int j=0; j<tmpdest.size(); j++){
+                    conCopia.add(tmpdest[j])
+                }
+            }
+        }
+    }
+}
+
+
+//Mapear usuarios con copia al atributo del WF
+def actualizarccWorkflow(conCopia){
+    conCopia = conCopia.unique()
+    for(int i=0; i<conCopia.size(); i++){
+        WFATTRCCINT[i] = conCopia[i] 
+        
+       //Buscar dependencia
+       def depend = getDependence(conCopia[i])
+       
+       if(depend){
+           if(depend.size() > 0){
+                WFATTRDEPINT[i] = depend[0].Sigla
+           }else{
+                WFATTRDEPINT[i] = null
+           }
+       }else{
+            WFATTRDEPINT[i] = null
+       }
+       
+        //Actualizar WF
+        WFSTATUS.updateData()
+    }
+}
+/*****************************************Functions END*****************************************/
+
+/*****************************************Utils BEGIN*****************************************/
+
+//Obtener usuarios en la tabla VEX
+def getVexUsers(dep){
+    
+    //Query para traer destinatarios y correos de la tabla VEX
+    def query = """SELECT (SELECT STRING_AGG (Destinatario, ';')  
+                           FROM Z_COR_DependenciasVEX
+                           WHERE Seq = vex.Seq) AS 'Destinatario',
+                          vex.Correo
+                   FROM Z_COR_DependenciasVEX vex
+                   WHERE vex.Activo = 1 AND vex.RowSeqNum = 1
+                   AND vex.Dependencia = '${dep}' 
+                """
+        
+    def result = sql.runSQLFast(query, false, false, 0).rows
+    
+    return result
+}
+
+//Obtener dependencia de usuario por correo
+def getDependence(email){
+    def depend
+    def userbyMail = users.searchUsersByEmail(email).listAll()
+    
+    for(int i=0; i<userbyMail.size(); i++){
+        depend = runCS("${APC.subScripts.userDepend}", "${userbyMail[i].ID}").result
+        break
+    } 
+    
+    return depend
+}
+/*****************************************Utils END*****************************************/
+
+/***** CS validar dependencias VEX en copia - DGC 11/05/2020 END *****/
