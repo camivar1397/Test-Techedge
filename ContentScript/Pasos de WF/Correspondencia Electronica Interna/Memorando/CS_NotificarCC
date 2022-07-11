@@ -1,0 +1,108 @@
+/*
+████████╗███████╗ ██████╗██╗  ██╗███████╗██████╗  ██████╗ ███████╗    ████████╗███████╗ █████╗ ███╗   ███╗
+╚══██╔══╝██╔════╝██╔════╝██║  ██║██╔════╝██╔══██╗██╔════╝ ██╔════╝    ╚══██╔══╝██╔════╝██╔══██╗████╗ ████║
+   ██║   █████╗  ██║     ███████║█████╗  ██║  ██║██║  ███╗█████╗         ██║   █████╗  ███████║██╔████╔██║
+   ██║   ██╔══╝  ██║     ██╔══██║██╔══╝  ██║  ██║██║   ██║██╔══╝         ██║   ██╔══╝  ██╔══██║██║╚██╔╝██║
+   ██║   ███████╗╚██████╗██║  ██║███████╗██████╔╝╚██████╔╝███████╗       ██║   ███████╗██║  ██║██║ ╚═╝ ██║
+   ╚═╝   ╚══════╝ ╚═════╝╚═╝  ╚═╝╚══════╝╚═════╝  ╚═════╝ ╚══════╝       ╚═╝   ╚══════╝╚═╝  ╚═╝╚═╝     ╚═╝
+                                            ╦╔╗╔╔═╗╔═╗╦╦═╗╦╔╗╔╔═╗  ╔╦╗╦═╗╦ ╦╔═╗╔╦╗  ╔═╗╦  ╔═╗╔╗ ╔═╗╦  ╦ ╦ ╦
+                                            ║║║║╚═╗╠═╝║╠╦╝║║║║║ ╦   ║ ╠╦╝║ ║╚═╗ ║   ║ ╦║  ║ ║╠╩╗╠═╣║  ║ ╚╦╝
+                                            ╩╝╚╝╚═╝╩  ╩╩╚═╩╝╚╝╚═╝   ╩ ╩╚═╚═╝╚═╝ ╩   ╚═╝╩═╝╚═╝╚═╝╩ ╩╩═╝╩═╝╩ 
+*/
+/***** CS para enviar notificación CC del WF - LPA 20/01/2020 BEGIN *****/
+
+//Cargar APP del proceso
+apc = docman.getScriptByNickname("am_correspondencia_config").getCSVars()?.app
+
+def WFStatus = workflow.getWorkflowStatus(workID, subWorkID)
+def form = forms.getWorkFlowFormDirect(WFStatus, "Form")
+def WFAttributes = WFStatus.getAttributes()
+def WFAtCop = WFAttributes.data."Copia"
+def wfattachments = WFStatus.getAttachmentsFolder()
+
+//Cargar Anexos
+def wfanexos = docman.getNodeByName(wfattachments, "Anexos")
+def memo = docman.getNodeByName(wfattachments, "${form.radicado.value}.pdf")
+
+//Asunto y Cuerpo del correo
+def emailTemplate = docman.getNode(apc.constants.correofinalmemo)
+String asunto = "Copia comunicación interna No. ${form.radicado.value}"
+String email= "<tr>"
+email+="<td align='justify'>${form.asunto.value}</td>"
+email+="<td align='center'>${form.radicado.value}</td>"
+email+="<td align='center'>${form.fecharadicado.valueAsDate.format('dd/MM/yyyy hh:mm:ss a')}</td>"
+def tipoCom = runCS("${apc.subScripts.siglatovalue}", "Parametros", "${form.tipocomunicacion.value}", null, null, "TIPC" ).result
+email+="<td align='center'>${tipoCom}</td>"
+email+="<td align='center'>${users.getUserById(form.de[0].usuario.value as long).displayName}</td>"
+def DepCom = runCS("${apc.subScripts.siglatovalue}", "Z_COR_Dependencias", "${form.de[0].dependencia.value}", "Sigla", "Nombre", null ).result
+email+="<td align='center'>${DepCom}</td>"
+email+="<td align='center'>${form.nanexos.value}</td>"
+email+="</tr>"
+
+def emailContext = ['asunto':"<h1>${asunto}</h1>", 'body': email]
+def mailbody = template.evaluateTemplate(emailTemplate, emailContext)
+correo = mail.create(mailbody)
+
+//lista de Copiados 
+for(int i=0; i<WFAtCop.size(); i++){
+    if(WFAtCop[i] != null){
+        correo.to(WFAtCop[i])
+    }
+}
+
+//Adjuntos en el correo
+correo.attach(memo)
+
+//Enviar Correo
+correo.from("correspondenciatechedgecol@gmail.com")
+correo.subject(asunto)
+mail.send(correo, "correspondencia")
+
+//Agregar permisos de los copiados a la carpeta de anexos del WF
+permisosCopiados(wfanexos, form, WFStatus)
+/***** CS para enviar notificación CC del WF - LPA 20/01/2020 END *****/
+
+//*** inicio agregar permisos a carpeta anexos
+def permisosCopiados(CSNode folder, form, workflowStatus){
+    try{
+        def listaCopiados = []
+        def workflowattrs = workflowStatus.attributes
+        //usuarios cc del formulario
+        for(int i=0; i<form.cc.size(); i++){
+            if(!form.cc[i].value.isEmpty()){
+                listaCopiados.add(users.getMemberById(form.cc[i].value as long))
+            }
+        }
+        //usuarios cc del WF
+        try{
+            def cc = workflowattrs.data.Copia
+            for(int i=0; i<cc.size(); i++){
+                if(cc[i] != null){
+                    def list = users.searchUsersByEmail(cc[i]).listAll()
+                    for(int j=0; j<list.size(); j++){
+                        listaCopiados.add(list[j])
+                    }
+                }
+            }
+            
+        }catch(e){
+           log.error("Error CS ${self.ID} al agregar cc del WF", e)             
+        }
+        
+        folder.getChildren().each{doc ->
+            docman.grantRights(doc, listaCopiados.unique(), ["SEE","SEECONTENTS"])
+        }
+        return true
+    }
+    catch(e){
+        log.error("Error CS ${self.ID} al agregar permisos a folder del radicado ${form.radicado.value} :" , e)
+        return false
+    }
+}
+
+//*** fin agregar permisos a carpeta anexos
+
+
+
+
+
