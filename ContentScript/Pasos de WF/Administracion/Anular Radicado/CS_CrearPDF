@@ -1,0 +1,42 @@
+/*
+████████╗███████╗ ██████╗██╗  ██╗███████╗██████╗  ██████╗ ███████╗    ████████╗███████╗ █████╗ ███╗   ███╗
+╚══██╔══╝██╔════╝██╔════╝██║  ██║██╔════╝██╔══██╗██╔════╝ ██╔════╝    ╚══██╔══╝██╔════╝██╔══██╗████╗ ████║
+   ██║   █████╗  ██║     ███████║█████╗  ██║  ██║██║  ███╗█████╗         ██║   █████╗  ███████║██╔████╔██║
+   ██║   ██╔══╝  ██║     ██╔══██║██╔══╝  ██║  ██║██║   ██║██╔══╝         ██║   ██╔══╝  ██╔══██║██║╚██╔╝██║
+   ██║   ███████╗╚██████╗██║  ██║███████╗██████╔╝╚██████╔╝███████╗       ██║   ███████╗██║  ██║██║ ╚═╝ ██║
+   ╚═╝   ╚══════╝ ╚═════╝╚═╝  ╚═╝╚══════╝╚═════╝  ╚═════╝ ╚══════╝       ╚═╝   ╚══════╝╚═╝  ╚═╝╚═╝     ╚═╝
+                                            ╦╔╗╔╔═╗╔═╗╦╦═╗╦╔╗╔╔═╗  ╔╦╗╦═╗╦ ╦╔═╗╔╦╗  ╔═╗╦  ╔═╗╔╗ ╔═╗╦  ╦ ╦ ╦
+                                            ║║║║╚═╗╠═╝║╠╦╝║║║║║ ╦   ║ ╠╦╝║ ║╚═╗ ║   ║ ╦║  ║ ║╠╩╗╠═╣║  ║ ╚╦╝
+                                            ╩╝╚╝╚═╝╩  ╩╩╚═╩╝╚╝╚═╝   ╩ ╩╚═╚═╝╚═╝ ╩   ╚═╝╩═╝╚═╝╚═╝╩ ╩╩═╝╩═╝╩ 
+*/
+/***** CS que genera el PDF y lo mueve a los attach - LPA 27/01/2020 BEGIN *****/
+def wfstatus = workflow.getWorkflowStatus(workID, subWorkID)
+def wfattachments = wfstatus.getAttachmentsFolder()
+def form = forms.getWorkFlowFormDirect(wfstatus, "Form")
+
+//Cargar APP de este OnLoad
+app = csvars.app
+
+//Cargar APP del proceso
+apc = docman.getScriptByNickname("am_correspondencia_config").getCSVars()?.app
+
+//Ejecutar query campos Conf
+def conf = sql.runSQLFast(app.querys.conf , false, false, 0).rows.collectEntries{[(it.Sigla):it.DescripcionLarga]}
+
+//Precargar datos
+form.viewParams.title = conf.get("TANU")
+form.viewParams.dependencia = sql.runSQLFast(app.querys.dependencias , false, false, 0).rows.collect{[label:it.Nombre,value:it.Sigla]}
+form.viewParams.dependenciaVp = sql.runSQLFast(app.querys.dependencias , false, false, 0).rows.collect{[label:it.Nombre,value:it.Sigla]}
+form.viewParams.municipio = sql.runSQLFast(app.querys.ciudades , false, false, 0).rows.collect{[label:it.Ciudad,value:it.Seq]}
+form.viewParams.pempresa = sql.runSQLFast(app.querys.empresas , false, false, 0).rows.collect{[label:it.Nombre,value:it.NIT]}
+sourceFile = forms.createRendableForm(form, asCSNode(apc.views.anu))
+sourceFile = rend.htmlToPdf(sourceFile)
+sourceFile.name ="Formato Anulacion.pdf"
+
+try{
+    docman.createDocument(wfattachments, sourceFile.name, sourceFile.content)
+
+}catch(e){
+    log.error("Error en la generacion del PDF ${sourceFile.name}", e)
+}
+/***** CS que genera el PDF y lo mueve a los attach - LPA 27/01/2020 END *****/
