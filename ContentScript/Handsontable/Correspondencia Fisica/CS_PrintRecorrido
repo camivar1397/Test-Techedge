@@ -1,0 +1,58 @@
+/*
+████████╗███████╗ ██████╗██╗  ██╗███████╗██████╗  ██████╗ ███████╗    ████████╗███████╗ █████╗ ███╗   ███╗
+╚══██╔══╝██╔════╝██╔════╝██║  ██║██╔════╝██╔══██╗██╔════╝ ██╔════╝    ╚══██╔══╝██╔════╝██╔══██╗████╗ ████║
+   ██║   █████╗  ██║     ███████║█████╗  ██║  ██║██║  ███╗█████╗         ██║   █████╗  ███████║██╔████╔██║
+   ██║   ██╔══╝  ██║     ██╔══██║██╔══╝  ██║  ██║██║   ██║██╔══╝         ██║   ██╔══╝  ██╔══██║██║╚██╔╝██║
+   ██║   ███████╗╚██████╗██║  ██║███████╗██████╔╝╚██████╔╝███████╗       ██║   ███████╗██║  ██║██║ ╚═╝ ██║
+   ╚═╝   ╚══════╝ ╚═════╝╚═╝  ╚═╝╚══════╝╚═════╝  ╚═════╝ ╚══════╝       ╚═╝   ╚══════╝╚═╝  ╚═╝╚═╝     ╚═╝
+                                            ╦╔╗╔╔═╗╔═╗╦╦═╗╦╔╗╔╔═╗  ╔╦╗╦═╗╦ ╦╔═╗╔╦╗  ╔═╗╦  ╔═╗╔╗ ╔═╗╦  ╦ ╦ ╦
+                                            ║║║║╚═╗╠═╝║╠╦╝║║║║║ ╦   ║ ╠╦╝║ ║╚═╗ ║   ║ ╦║  ║ ║╠╩╗╠═╣║  ║ ╚╦╝
+                                            ╩╝╚╝╚═╝╩  ╩╩╚═╩╝╚╝╚═╝   ╩ ╩╚═╚═╝╚═╝ ╩   ╚═╝╩═╝╚═╝╚═╝╩ ╩╩═╝╩═╝╩ 
+*/
+/***** CS que genera la tabla de recorridos en la vista print - DGC 25/06/2020 BEGIN *****/
+
+//**** Declaracion de constantes
+APC = docman.getScriptByNickname("am_correspondencia_config").getCSVars()?.app
+
+//**** Declaracion de variables
+def size
+
+/******************************************Main Code BEGIN******************************************/
+try{
+    size = form.radicados.size()
+    render(size)
+}catch(e){
+    log.error("Error en el CS PrintRecorrido", e)
+}
+/******************************************Main Code END******************************************/
+
+/*****************************************Functions BEGIN*****************************************/
+
+def render(size){
+    def writer = new StringWriter()
+    def htmlDoc = new MarkupBuilder(writer)
+	htmlDoc.table(class:"table table-bordered table-condensed") {
+    	tr{
+            th{ span "Radicado" }
+            th{ span "Fecha Radicado" }
+            th{ span "Destinatario" }
+            th{ span "Dependencia" }
+            th{ span "Edificio" }
+            th{ span "Área/Piso" }
+        }
+		for(int i=0; i<size; i++){
+            tr{
+                td{ span ""+form.radicados[i].radicado.value }
+                td{ span ""+form.radicados[i].fecharadicado.value }
+                td{ span ""+runCS("${APC.subScripts.siglatovalue}", "Usuario", "${form.radicados[i].destinatario.value}", "", "", "").result}
+                td{ span ""+form.radicados[i].dependencia.value }
+                td{ span ""+form.radicados[i].edificio.value }
+                td{ span ""+form.radicados[i].ubicacion.value }
+            }
+        }
+	}
+    htmlInputs = writer.toString()
+}
+/*****************************************Functions END*****************************************/
+
+/***** CS que genera la tabla de recorridos en la vista print - DGC 25/06/2020 END *****/
