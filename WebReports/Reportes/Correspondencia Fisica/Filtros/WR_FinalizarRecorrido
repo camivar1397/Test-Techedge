@@ -1,0 +1,129 @@
+[LL_WEBREPORT_EXCLUDEHTML /]
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="ie=edge">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Exo+2:100,100i,400,400i,700,700i&amp;display=swap">
+    <link rel="stylesheet" href="/img/appearances/Ecopetrol/libs/css/bootstrap.css">
+    <link rel="stylesheet" href="/img/appearances/Ecopetrol/libs/css/jquery.dataTables.min.css">
+    <link rel="stylesheet" href="/img/appearances/Ecopetrol/libs/css/responsive.dataTables.min.css">
+    <link href="/img/ansbwebform/lib/v2/css/select2/select2.css?v=3.5.4" rel="stylesheet">
+    <link href="/img/ansbwebform/lib/v2/css/select2/select2-bootstrap.css?v=3.5.4" rel="stylesheet">
+    <link href="/img/ansbwebform/lib/v2/css/am/am_form.css?v=2.0.0" rel="stylesheet">
+    <link href="/img/ansbwebform/lib/v2/css/bootstrap-datetimepicker.min.css?v=4.17.37" rel="stylesheet">
+    <link href="/img/ansbwebform/lib/v2/css/bootstrap-datepicker3.min.css?v=1.5.1" rel="stylesheet">
+    <link href="/img/ansbwebform/lib/v2/css/font-awesome.min.css?v=4.5.0" rel="stylesheet">
+    <link rel="stylesheet" href="/img/appearances/Ecopetrol/libs/reports/Reportes.css">
+    <title>Document</title>
+    <style>
+        body{
+            font-family: 'Exo 2', sans-serif;
+            margin: 18px;
+        }
+        
+        .am-form-button {
+            width: 100%;
+        }
+        
+        label{
+            font-size: 14px;
+        }
+        .borrar-us{
+            padding: 1px 5px;
+            font-size: 10px;
+            border-color: #ccc;
+            background-color: #ffffff;
+            right: 70px;
+            top: 16px;
+        }
+    </style>
+</head>
+<body>
+    <h2>Finalizar recorrido</h2>
+    <hr>
+    <div class="container">
+        <form action="#" id="ReportPrompts" name="ReportPrompts" autocomplete="off">
+            <div class="row">
+                <div class="col-xs-6">
+                    <div class="form-group">
+                        <label for="cgc">CGC Radicador</label>
+                        <div id="cgc-select"></div>
+                    </div>
+                </div>
+                <div class="col-xs-6">
+                    <div class="form-group">
+                        <label for="idRecorrido">ID recorrido</label>
+                        <input type="text" class="form-control" id="idRecorrido" placeholder="Digite el id de recorrido">
+                    </div>
+                </div>
+            </div>
+            <div class="row">
+                <div class="col-md-offset-8 col-xs-4 ">
+                    <button type="button" class="am-form-button btn btn-success am_submitbutton" onclick="runReport();">
+                            <span class="glyphicon glyphicon-search" aria-hidden="true"></span> Consultar
+                    </button>
+                </div>
+            </div>
+        </form>
+    </div>
+    <div id="loadingindicator" style="background: none repeat scroll 0px 0px rgba(255, 255, 255, 0.85); z-index: 1000; bottom: 1px; left: 1px; position: fixed; right: 0px; top: 0px; margin-left: 0px; margin-top: 0px;">
+        <div style="height: 60px;left: 0;margin-top: -30px;position: fixed;right: 0;text-align: center;top: 50%;">
+            <i class="fa fa-refresh fa-spin fa-3x"></i>
+            <br>
+            <p>CARGANDO...</p>
+        </div>
+    </div>
+    
+    <script src="/img/ansbwebform/lib/v2/js/jquery.min.js?v=1.12.2"></script>
+    <script src="/img/ansbwebform/lib/v2/js/am/am_init.min.js?v=2.0.0"></script>
+    <script src="/img/ansbwebform/lib/v2/js/bootstrap.min.js?v=3.3.6"></script>
+    <script src="/img/ansbwebform/lib/v2/js/moment-with-locales.js?v=2.12.0"></script>
+    <script src="/img/ansbwebform/lib/v2/js/bootstrap/bootstrap-datetimepicker.min.js?v=4.17.37"></script>
+    <script src="/img/ansbwebform/lib/v2/js/bootstrap/bootstrap-datepicker.min.js?v=1.5.1"></script>
+    <script src="/img/ansbwebform/lib/v2/js/select2/select2.min.js?v=3.5.4"></script>
+    <script>
+        $(function () {
+            
+            setSelect([LL_REPTAG_$WR_CGCRadicador /], "#cgc-select")
+            
+            setTimeout(() => {
+                $('.select2').select2({
+                    placeholder: 'Seleccione una opción...'
+                });
+            document.querySelector("#loadingindicator").style.display = "none"
+            $(".popover_help").popover()
+            }, 3000);
+        });
+        
+        function setSelect(wrID, object) {
+            let wrUrl = "?func=ll&objId=" + wrID + "&objAction=RunReport";
+            // Se ejecuta el WR
+            $.ajax({
+                async: true,
+                url: wrUrl,
+                cache: false
+            }).done(function (response) {
+                $(object).html(response);
+            })
+        }
+        
+        function runReport() {
+            document.querySelector("#loadingindicator").style.display = "block"
+            let idRecorrido = document.querySelector("#idRecorrido").value
+            let cgc = document.querySelector("#cgc").value
+            
+            URL= "?func=ll&objId=[LL_REPTAG_$WR_FinalizarRecorrido /]&objAction=RunReport&conHTML=0"
+            URL+= "&cgc=" + cgc
+            URL+= "&idrecorrido=" + idRecorrido
+            URL+= "&nexturl=[LL_REPTAG_NEXTURL ESCAPEURL /]"
+            console.log(URL)
+            window.location = URL
+            
+        }
+    </script>
+</body>
+
+[LL_WEBREPORT_STARTROW /]
+[LL_WEBREPORT_ENDROW /]
