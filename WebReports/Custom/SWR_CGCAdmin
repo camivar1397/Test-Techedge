@@ -1,0 +1,8 @@
+[LL_WEBREPORT_EXCLUDEHTML /]
+
+<SELECT class="form-control select2" type="text" name="cgc" id="cgc">
+    <OPTION VALUE="" >-</OPTION>
+[LL_WEBREPORT_STARTROW /]
+    <OPTION VALUE="[LL_REPTAG='CodigoCGC' /]">[LL_REPTAG='Nombre' /]</OPTION>
+[LL_WEBREPORT_ENDROW /]
+</SELECT>
