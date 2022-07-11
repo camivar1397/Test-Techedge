@@ -1,0 +1,120 @@
+/*
+████████╗███████╗ ██████╗██╗  ██╗███████╗██████╗  ██████╗ ███████╗    ████████╗███████╗ █████╗ ███╗   ███╗
+╚══██╔══╝██╔════╝██╔════╝██║  ██║██╔════╝██╔══██╗██╔════╝ ██╔════╝    ╚══██╔══╝██╔════╝██╔══██╗████╗ ████║
+   ██║   █████╗  ██║     ███████║█████╗  ██║  ██║██║  ███╗█████╗         ██║   █████╗  ███████║██╔████╔██║
+   ██║   ██╔══╝  ██║     ██╔══██║██╔══╝  ██║  ██║██║   ██║██╔══╝         ██║   ██╔══╝  ██╔══██║██║╚██╔╝██║
+   ██║   ███████╗╚██████╗██║  ██║███████╗██████╔╝╚██████╔╝███████╗       ██║   ███████╗██║  ██║██║ ╚═╝ ██║
+   ╚═╝   ╚══════╝ ╚═════╝╚═╝  ╚═╝╚══════╝╚═════╝  ╚═════╝ ╚══════╝       ╚═╝   ╚══════╝╚═╝  ╚═╝╚═╝     ╚═╝
+                                            ╦╔╗╔╔═╗╔═╗╦╦═╗╦╔╗╔╔═╗  ╔╦╗╦═╗╦ ╦╔═╗╔╦╗  ╔═╗╦  ╔═╗╔╗ ╔═╗╦  ╦ ╦ ╦
+                                            ║║║║╚═╗╠═╝║╠╦╝║║║║║ ╦   ║ ╠╦╝║ ║╚═╗ ║   ║ ╦║  ║ ║╠╩╗╠═╣║  ║ ╚╦╝
+                                            ╩╝╚╝╚═╝╩  ╩╩╚═╩╝╚╝╚═╝   ╩ ╩╚═╚═╝╚═╝ ╩   ╚═╝╩═╝╚═╝╚═╝╩ ╩╩═╝╩═╝╩ 
+*/
+/***** CS para notificación OPC - DGC 15/05/2020 - QAS JHMM 08/07/2020 BEGIN *****/
+
+//**** Declaracion de constantes
+APP = csvars.app
+CONF = sql.runSQLFast(APP.querys.conf , false, false, 0).rows.collectEntries{[(it.Sigla):it.DescripcionLarga]}
+ASUNTO = "Reporte diario derechos de Petición ${new Date().format('dd/MM/yyyy')}"
+RADICADOS = "RADICADOS"
+REGEX = "<[^>]*>"
+REGEXENT = "&.*?;"
+DATE = new Date()
+
+//**** Declaracion de variables
+def result = sql.runSQL(APP.querys.getopc, false, false, 0).rows
+dia = DATE.format("EEE")
+
+//crea un libro con sus pestanas
+String[] secciones = [RADICADOS]
+ARCHIVOEXCEL = xlsx.createSpreadsheet(secciones)
+
+/******************************************Main Code BEGIN******************************************/
+try{
+    //Evaluar el dia de ejecucion
+    if((dia != "Sat") && (dia != "Sun")){
+    
+        //Escribir Titulos
+        escribirTitulos()
+
+        //Obtener comunicaciones
+        setComunicaciones(result)
+    
+        //Enviar correo
+        enviarCorreo()
+    }  
+}catch(e){
+    log.error("Error en el envio de la notificacion", e)
+}
+/******************************************Main Code END******************************************/
+
+/*****************************************Functions BEGIN*****************************************/
+
+//Escribir Titulos
+def escribirTitulos(){
+    //Escribe los titulos de cada pestaña en el excel
+    List<String> TVALORES = ["N°", "Estado", "Radicado", "Remitente", "Empresa",
+                             "Identificación", "Correo", "Asunto", "Observaciones", 
+                             "N. Anexos", "Fecha Radicación", "Destinatario", "Dependencia", "CGC"] 
+    
+    ARCHIVOEXCEL.getWorksheetByName(RADICADOS).writeRow(TVALORES,0)
+}
+
+//Obtener comunicaciones
+def setComunicaciones(result){
+   
+    //Iterar los resultados
+    result.eachWithIndex{ row, index ->
+        List<Object> Encabezado = new ArrayList<Object>() 
+        int size = ARCHIVOEXCEL.getWorksheetByName(RADICADOS).readRows().size()+1
+        Encabezado.add(index + 1)
+        Encabezado.add(row.Estado)
+        if (row.Type == 'CER' && row.Estado != 'Finalizado')
+            Encabezado.add(row.Radicado)
+        else
+            Encabezado.add('=HYPERLINK("'+"https://co-explorationlab.r53.techedgegroup.com/OTCS/llisapi.dll/Open/${row.IDCarpeta}"+'", "'+"${row.Radicado}"+'")')
+        Encabezado.add(row.DeUsuario)
+        Encabezado.add(row.DeEmpresa)
+        Encabezado.add(row.DeIdentificacion)
+        Encabezado.add(row.DeCorreo)
+        Encabezado.add(row.Asunto)
+        Encabezado.add(row.Observaciones ? row.Observaciones.replaceAll(REGEX, "").replaceAll(REGEXENT,"") : "")
+        Encabezado.add(row.NAnexos)
+        Encabezado.add(row.FechaRadicado)
+        Encabezado.add(row.ParaNombre)
+        Encabezado.add(row.ParaDependencia)
+        Encabezado.add(row.CGC)
+        ARCHIVOEXCEL.getWorksheetByName(RADICADOS).writeRow(Encabezado, size)
+    }
+}
+
+def enviarCorreo(){
+    
+    //Evaluar template
+    def correo = mail.create(CONF.get("Mensaje"))
+    
+    //Destinatarios del correo
+    CONF.Lista.toString().split(";").each{email->
+        correo.to(email)
+    }
+    
+    //Archivo Excel
+    File reporteOPC = new File("ReporteOPC_${new Date().format('ddMMyyyy')}.xlsx")
+    ARCHIVOEXCEL.updateFormulas().save(reporteOPC)
+
+    //Enviar Correo
+    correo.subject(ASUNTO)
+    correo.attach(reporteOPC)
+    correo.from("correspondenciatechedgecol@gmail.com")
+    mail.send(correo, "correspondencia")
+    
+    //Borrar archivo
+    reporteOPC.delete()
+}
+
+/*****************************************Functions END*****************************************/
+
+/***** CS para notificación OPC - DGC 15/05/2020 END *****/
+
+
+
+
