@@ -1,0 +1,69 @@
+/*
+████████╗███████╗ ██████╗██╗  ██╗███████╗██████╗  ██████╗ ███████╗    ████████╗███████╗ █████╗ ███╗   ███╗
+╚══██╔══╝██╔════╝██╔════╝██║  ██║██╔════╝██╔══██╗██╔════╝ ██╔════╝    ╚══██╔══╝██╔════╝██╔══██╗████╗ ████║
+   ██║   █████╗  ██║     ███████║█████╗  ██║  ██║██║  ███╗█████╗         ██║   █████╗  ███████║██╔████╔██║
+   ██║   ██╔══╝  ██║     ██╔══██║██╔══╝  ██║  ██║██║   ██║██╔══╝         ██║   ██╔══╝  ██╔══██║██║╚██╔╝██║
+   ██║   ███████╗╚██████╗██║  ██║███████╗██████╔╝╚██████╔╝███████╗       ██║   ███████╗██║  ██║██║ ╚═╝ ██║
+   ╚═╝   ╚══════╝ ╚═════╝╚═╝  ╚═╝╚══════╝╚═════╝  ╚═════╝ ╚══════╝       ╚═╝   ╚══════╝╚═╝  ╚═╝╚═╝     ╚═╝
+                                            ╦╔╗╔╔═╗╔═╗╦╦═╗╦╔╗╔╔═╗  ╔╦╗╦═╗╦ ╦╔═╗╔╦╗  ╔═╗╦  ╔═╗╔╗ ╔═╗╦  ╦ ╦ ╦
+                                            ║║║║╚═╗╠═╝║╠╦╝║║║║║ ╦   ║ ╠╦╝║ ║╚═╗ ║   ║ ╦║  ║ ║╠╩╗╠═╣║  ║ ╚╦╝
+                                            ╩╝╚╝╚═╝╩  ╩╩╚═╩╝╚╝╚═╝   ╩ ╩╚═╚═╝╚═╝ ╩   ╚═╝╩═╝╚═╝╚═╝╩ ╩╩═╝╩═╝╩ 
+*/
+//Retorna el o los radicados de comunicaciones físicas para un CGC seleccionado JHMM 10/06/2019
+
+def getByID(String id) {   
+    def sqlCode = """SELECT Seq, DataID, Radicado FROM Z_COR_RadicacionFisica 
+                     WHERE Radicado = '${id}'
+                  """
+    Boolean cursorEnabled = false 
+    Boolean transactionEnabled = false
+    Integer recordLimit = 1
+    def result = sql.runSQLFast(sqlCode,  cursorEnabled,  transactionEnabled,  recordLimit).rows.collect{
+          [ id:it.Radicado, text:it.Radicado, desc:"N°: ${it.Seq}", image:"${img}empty.gif" ]
+    }
+    
+    if(result){    
+        return result[0]
+    }
+    else{
+        return []
+    }
+}
+
+def getAll(String searchTerm, String cgcrad) {
+    def result = []
+    String cond1 = ""
+    if(searchTerm){
+        cond1 = "AND Radicado LIKE UPPER('%${searchTerm}%')" 
+    }
+    if(cgcrad){
+        def sqlCode = """SELECT Seq, DataID, Radicado FROM Z_COR_RadicacionFisica 
+                         WHERE CGC = '${cgcrad}' AND Estado != 'Finalizado'
+                         ${cond1}
+						 ORDER BY Seq
+                      """
+        Boolean cursorEnabled = false 
+        Boolean transactionEnabled = false
+        Integer recordLimit = 1
+        
+        result = sql.runSQLFast(sqlCode,  cursorEnabled,  transactionEnabled,  recordLimit).rows.collect{
+             [ id:it.Radicado, text:it.Radicado, desc:"N°: ${it.Seq}", image:"${img}empty.gif" ]}
+    }
+    return result
+}
+
+/*
+	Main code
+*/
+try{
+        
+    if(params.id){
+    	result = getByID(params.id)
+    } else {
+        result = getAll(params.term, params.cgcrad)
+    }
+    json(result)
+
+} catch(e) {
+	log.error("Error CS:${self.ID} -> convirtiendo CGC ${params.cgcrad} en Radicados: ", e)
+}
