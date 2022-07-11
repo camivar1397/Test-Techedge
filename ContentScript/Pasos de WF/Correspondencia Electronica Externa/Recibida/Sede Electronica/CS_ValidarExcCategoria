@@ -1,0 +1,153 @@
+/*
+████████╗███████╗ ██████╗██╗  ██╗███████╗██████╗  ██████╗ ███████╗    ████████╗███████╗ █████╗ ███╗   ███╗
+╚══██╔══╝██╔════╝██╔════╝██║  ██║██╔════╝██╔══██╗██╔════╝ ██╔════╝    ╚══██╔══╝██╔════╝██╔══██╗████╗ ████║
+   ██║   █████╗  ██║     ███████║█████╗  ██║  ██║██║  ███╗█████╗         ██║   █████╗  ███████║██╔████╔██║
+   ██║   ██╔══╝  ██║     ██╔══██║██╔══╝  ██║  ██║██║   ██║██╔══╝         ██║   ██╔══╝  ██╔══██║██║╚██╔╝██║
+   ██║   ███████╗╚██████╗██║  ██║███████╗██████╔╝╚██████╔╝███████╗       ██║   ███████╗██║  ██║██║ ╚═╝ ██║
+   ╚═╝   ╚══════╝ ╚═════╝╚═╝  ╚═╝╚══════╝╚═════╝  ╚═════╝ ╚══════╝       ╚═╝   ╚══════╝╚═╝  ╚═╝╚═╝     ╚═╝
+                                            ╦╔╗╔╔═╗╔═╗╦╦═╗╦╔╗╔╔═╗  ╔╦╗╦═╗╦ ╦╔═╗╔╦╗  ╔═╗╦  ╔═╗╔╗ ╔═╗╦  ╦ ╦ ╦
+                                            ║║║║╚═╗╠═╝║╠╦╝║║║║║ ╦   ║ ╠╦╝║ ║╚═╗ ║   ║ ╦║  ║ ║╠╩╗╠═╣║  ║ ╚╦╝
+                                            ╩╝╚╝╚═╝╩  ╩╩╚═╩╝╚╝╚═╝   ╩ ╩╚═╚═╝╚═╝ ╩   ╚═╝╩═╝╚═╝╚═╝╩ ╩╩═╝╩═╝╩ 
+*/
+/***** CS para mapear atributos del WF - LPA 13/04/2020 BEGIN *****/
+
+//**** Declaracion de constantes
+APC = docman.getScriptByNickname("am_correspondencia_config").getCSVars()?.app
+WFSTATUS = workflow.getWorkflowStatus(workID, subWorkID)
+FORM = forms.getWorkFlowFormDirect(WFSTATUS, "Form")
+WFATTR = WFSTATUS.getAttributes()
+WFATTRCCINT = WFATTR.data.CopiaInt
+WFATTRDEPINT = WFATTR.data.DependenciaCCInt
+
+//**** Declaracion de variables
+def conCopia = []
+
+/******************************************Main Code BEGIN******************************************/
+try{
+    //Validar los con copia que se encuentran en el WF
+    validarConCopiaWF(conCopia)
+
+    //Limpiar atributos cc en el WF
+    limpiarccWorkflow()
+
+    //Validar Excepciones de Categoría Asunto
+    validarExepcionesCategoria(conCopia)
+    
+    //Actualizar atributo cc en el WF
+    actualizarccWorkflow(conCopia)
+    
+    //Actualizar dependencia del destinatario
+    setDependence()
+    
+}catch(e){
+    log.error("Error en validar Excepciones Categoría", e)
+}
+/******************************************Main Code END******************************************/
+
+/*****************************************Functions BEGIN*****************************************/
+
+//Obtener correos que se encuentran en el Atributo Copia del WF
+def validarConCopiaWF(conCopia){
+    for(int i=0; i<WFATTRCCINT.size(); i++){
+        if(WFATTRCCINT[i] != null){
+            conCopia.add(WFATTRCCINT[i])
+        }
+    }
+}
+
+//Limpiar Copiados
+def limpiarccWorkflow(){
+    for(int i=0; i<WFATTRCCINT.size(); i++){
+        WFATTRCCINT[i] = null
+        WFATTRDEPINT[i] = null
+        WFSTATUS.updateData()
+    }
+}
+
+//Validar Excepciones de Categoría Asunto
+def validarExepcionesCategoria(conCopia){
+    if(!FORM.categoriaasunto.value.isEmpty()){
+        def query = """SELECT 
+                       (SELECT STRING_AGG (Destinatario, ';')  
+                        FROM Z_COR_Excepciones
+                        WHERE Seq = ex.Seq) AS 'Destinatario',
+                       ex.Correo
+                       FROM Z_COR_Excepciones ex
+                       WHERE ex.Activo = 1 AND ex.RowSeqNum=1
+                       AND ex.Excepciones = '${FORM.categoriaasunto.value}'
+                    """
+        def resultQueryExcepcion = sql.runSQLFast(query, false, false, 0).rows
+        if(resultQueryExcepcion.size() > 0){
+            def destinatarios = resultQueryExcepcion.get(0)?.get("Destinatario")?.split(";")
+            if(destinatarios){
+                for(int i=0; i<destinatarios.size(); i++){
+                    if(destinatarios[i] != "" || destinatarios[i] != null){
+                        conCopia.add(users.getUserById(destinatarios[i] as long).email)
+                    }
+                }
+            }
+            def correos = resultQueryExcepcion.get(0)?.get("Correo")?.split(";")
+            if(correos){
+                for(int i=0; i<correos.size(); i++){
+                    if(correos[i] != "" || correos[i] != null){
+                        conCopia.add(correos[i])
+                    }
+                }
+            }
+        }
+    }
+}
+
+//Mapear usuarios en copia al atributo del WF
+def actualizarccWorkflow(conCopia){
+    conCopia = conCopia.unique()
+    for(int i=0; i<conCopia.size(); i++){
+
+        WFATTRCCINT[i] = conCopia[i] 
+        
+        //Buscar dependencia
+        def depend = getDependence(conCopia[i])
+        
+        if(depend){
+           if(depend.size() > 0){
+               WFATTRDEPINT[i] = depend[0].Sigla
+           }else{
+               WFATTRDEPINT[i] = null
+           }
+        }else{
+            WFATTRDEPINT[i] = null
+        }
+        
+        //Actualizar WF
+        WFSTATUS.updateData()
+    }
+}
+
+//Actualizar dependencia del destinatario
+def setDependence(){
+    
+    //Obtener la dependencia del usuario destinatario del formulario
+    def depend = runCS("${APC.subScripts.userDepend}", "${FORM.parausuario.value}").result
+
+    if(depend.size() > 0){
+        WFATTR.data.Dependencia = depend[0].Sigla 
+        WFSTATUS.updateData()
+    }
+}
+/*****************************************Functions END*****************************************/
+
+/*****************************************Utils BEGIN*****************************************/
+def getDependence(email){
+    def depend
+    def userbyMail = users.searchUsersByEmail(email).listAll()
+    
+    for(int i=0; i<userbyMail.size(); i++){
+        depend = runCS("${APC.subScripts.userDepend}", "${userbyMail[i].ID}").result
+        break
+    } 
+    
+    return depend
+}
+/*****************************************Utils END*****************************************/
+
+/***** CS para mapear atributos del WF - LPA 13/04/2020 END *****/
