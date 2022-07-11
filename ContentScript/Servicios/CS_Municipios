@@ -1,0 +1,76 @@
+/*
+████████╗███████╗ ██████╗██╗  ██╗███████╗██████╗  ██████╗ ███████╗    ████████╗███████╗ █████╗ ███╗   ███╗
+╚══██╔══╝██╔════╝██╔════╝██║  ██║██╔════╝██╔══██╗██╔════╝ ██╔════╝    ╚══██╔══╝██╔════╝██╔══██╗████╗ ████║
+   ██║   █████╗  ██║     ███████║█████╗  ██║  ██║██║  ███╗█████╗         ██║   █████╗  ███████║██╔████╔██║
+   ██║   ██╔══╝  ██║     ██╔══██║██╔══╝  ██║  ██║██║   ██║██╔══╝         ██║   ██╔══╝  ██╔══██║██║╚██╔╝██║
+   ██║   ███████╗╚██████╗██║  ██║███████╗██████╔╝╚██████╔╝███████╗       ██║   ███████╗██║  ██║██║ ╚═╝ ██║
+   ╚═╝   ╚══════╝ ╚═════╝╚═╝  ╚═╝╚══════╝╚═════╝  ╚═════╝ ╚══════╝       ╚═╝   ╚══════╝╚═╝  ╚═╝╚═╝     ╚═╝
+                                            ╦╔╗╔╔═╗╔═╗╦╦═╗╦╔╗╔╔═╗  ╔╦╗╦═╗╦ ╦╔═╗╔╦╗  ╔═╗╦  ╔═╗╔╗ ╔═╗╦  ╦ ╦ ╦
+                                            ║║║║╚═╗╠═╝║╠╦╝║║║║║ ╦   ║ ╠╦╝║ ║╚═╗ ║   ║ ╦║  ║ ║╠╩╗╠═╣║  ║ ╚╦╝
+                                            ╩╝╚╝╚═╝╩  ╩╩╚═╩╝╚╝╚═╝   ╩ ╩╚═╚═╝╚═╝ ╩   ╚═╝╩═╝╚═╝╚═╝╩ ╩╩═╝╩═╝╩ 
+*/
+/***** Busca todos los municipios de correspondencia - DGC 08/01/2020 BEGIN *****/
+
+/*
+	Utility function to find an entry by ID in the database.
+*/
+def getByID(String id) {    
+    def sqlCode = """SELECT Seq, Ciudad, Pais
+                     FROM Z_COR_Municipios
+                     WHERE Seq = ${id}
+                     ORDER BY Orden
+                  """
+    Boolean cursorEnabled = false 
+    Boolean transactionEnabled = false
+    Integer recordLimit = 1
+    def result = sql.runSQLFast(sqlCode,  cursorEnabled,  transactionEnabled,  recordLimit).rows.collect{
+          [ id:it.Seq, text:it.Ciudad, desc:it.Pais, image:"${img}empty.gif" ]
+    }
+    
+    if(result){    
+        return result[0]
+    }
+    else{
+        return []
+    }
+}
+
+/*
+	Utility function to find entries in the database.
+*/
+def getAll(String searchTerm) {
+    String cond1 = ""
+    if(searchTerm){
+        cond1 = "WHERE (UPPER(Ciudad) LIKE UPPER('%${searchTerm}%') OR UPPER(Pais) LIKE UPPER('%${searchTerm}%'))"
+    }
+    
+    def sqlCode = """SELECT Seq, Ciudad, Pais
+                     FROM Z_COR_Municipios
+                     ${cond1}
+                     ORDER BY Orden
+                  """
+    Boolean cursorEnabled = false 
+    Boolean transactionEnabled = false
+    Integer recordLimit = 1
+    def result = sql.runSQLFast(sqlCode,  cursorEnabled,  transactionEnabled,  recordLimit).rows.collect{
+        [ id:it.Seq, text:it.Ciudad , desc:it.Pais, image:"${img}empty.gif" ]}
+    return result
+}
+
+/*
+	Main code
+*/
+try{
+        
+    if(params.id){
+    	result = getByID(params.id)
+    } else {
+        result = getAll(params.term)
+    }
+    //return result
+    json(result)
+
+} catch(e) {
+	log.error("Error en Busqueda de Municipio en REST service.", e)
+}
+/***** Busca todos los municipios de correspondencia - DGC 08/01/2020 END *****/
