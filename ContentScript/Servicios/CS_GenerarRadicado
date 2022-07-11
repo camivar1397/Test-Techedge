@@ -1,0 +1,88 @@
+/*
+████████╗███████╗ ██████╗██╗  ██╗███████╗██████╗  ██████╗ ███████╗    ████████╗███████╗ █████╗ ███╗   ███╗
+╚══██╔══╝██╔════╝██╔════╝██║  ██║██╔════╝██╔══██╗██╔════╝ ██╔════╝    ╚══██╔══╝██╔════╝██╔══██╗████╗ ████║
+   ██║   █████╗  ██║     ███████║█████╗  ██║  ██║██║  ███╗█████╗         ██║   █████╗  ███████║██╔████╔██║
+   ██║   ██╔══╝  ██║     ██╔══██║██╔══╝  ██║  ██║██║   ██║██╔══╝         ██║   ██╔══╝  ██╔══██║██║╚██╔╝██║
+   ██║   ███████╗╚██████╗██║  ██║███████╗██████╔╝╚██████╔╝███████╗       ██║   ███████╗██║  ██║██║ ╚═╝ ██║
+   ╚═╝   ╚══════╝ ╚═════╝╚═╝  ╚═╝╚══════╝╚═════╝  ╚═════╝ ╚══════╝       ╚═╝   ╚══════╝╚═╝  ╚═╝╚═╝     ╚═╝
+                                            ╦╔╗╔╔═╗╔═╗╦╦═╗╦╔╗╔╔═╗  ╔╦╗╦═╗╦ ╦╔═╗╔╦╗  ╔═╗╦  ╔═╗╔╗ ╔═╗╦  ╦ ╦ ╦
+                                            ║║║║╚═╗╠═╝║╠╦╝║║║║║ ╦   ║ ╠╦╝║ ║╚═╗ ║   ║ ╦║  ║ ║╠╩╗╠═╣║  ║ ╚╦╝
+                                            ╩╝╚╝╚═╝╩  ╩╩╚═╩╝╚╝╚═╝   ╩ ╩╚═╚═╝╚═╝ ╩   ╚═╝╩═╝╚═╝╚═╝╩ ╩╩═╝╩═╝╩ 
+*/
+/***** Servicio para Generar el radicado de correspondencia - DGC 09/01/2020 BEGIN *****/
+def generarRadicado(String fuente, String tipo, String cgc, String sistema, String usuario, String dependencia, String destinatario, String anexos, String folios){
+    
+    def result = []
+    
+    def fecha = new Date().format('yyyy-MM-dd hh:mm:ss.S a').toString()
+    
+    def spins = """EXEC Z_SP_GenerarRadicado @Fuente ='${fuente}', @Tipo = '${tipo}', @CGC ='${cgc}', 
+                                             @Sistema = '${sistema}', @Usuario = '${usuario}', @Dependencia = '${dependencia}', 
+                                             @Destinatario = '${destinatario}', @Anexos = '${anexos}',
+                                             @Folios = '${folios}', @Fecha = '${fecha}'
+                """
+    
+    def qurad = """SELECT Tipo, Fecha, CGC, Sistema, Radicado
+                   FROM Z_FN_ObtenerRadicado('${fecha}','${usuario}')
+                """
+    
+    sql.runSQL(spins, false, false, 0)
+    
+    def qures = sql.runSQLFast(qurad, false, false, 0).rows
+    def consecutivo = qures?.get(0)?.get('Radicado')
+    
+    if(consecutivo){
+        def qtipo = qures?.get(0)?.get('Tipo')
+        def qFecha = qures?.get(0)?.get('Fecha') as Date
+        def qCGC = qures?.get(0)?.get('CGC')
+        def qSistema = qures?.get(0)?.get('Sistema')
+        def qConsecutivo = leftPad("${consecutivo}", 7, "0")
+        def radicado = "${qtipo}-${qFecha.format('yyyy')}-${qCGC}-${qSistema}${qConsecutivo}"
+        result << ["Estado" : "OK", "Consecutivo" : "${consecutivo}", "Radicado" : "${radicado}", "Fecha" : "${fecha}"]
+    return result
+    }else{
+        result << ["Estado" : "Error", "Consecutivo" : "", "Radicado" : "" , "Fecha" : ""]
+    }
+}
+
+def leftPad(String numero, int longitud, String caracter){
+    if(numero.length() >= longitud){
+        return numero
+    }else{
+        while(numero.length() < longitud){
+            numero = "${caracter}${numero}"
+        }
+        return numero
+    }
+}
+
+/************************************ Main Code ************************************/
+try{
+    def result = [] 
+    String fuente = params.fuente == null ? "" : params.fuente
+    String tipo = params.tipo == null ? "" : params.tipo
+    String cgc = params.cgc == null ? "" : params.cgc
+    String sistema = params.sistema == null ? "" : params.sistema
+    String usuario = params.usuario == null ? "" : params.usuario
+    String dependencia = params.dependencia == null ? "" : params.dependencia
+    String destinatario = params.destinatario == null ? "" : params.destinatario
+    String anexos = params.anexos == null ? "" : params.anexos
+    String folios = params.folios == null ? "" : params.folios
+    
+    if(fuente.isEmpty() || tipo.isEmpty() || cgc.isEmpty() || sistema.isEmpty() || usuario.isEmpty()){
+        result << ["Estado" : "Error", "Consecutivo" : "", "Radicado" : "" , "Fecha" : ""]
+        json(result)
+	    log.error("Error en generación de radicado en REST service, parámetros incompletos")   
+    }else{
+        result = generarRadicado(fuente, tipo, cgc, sistema, usuario, dependencia, destinatario, anexos, folios)
+        json(result)   
+    }
+}catch(e) {
+    def result = [] 
+    result << ["Estado" : "Error", "Consecutivo" : "", "Radicado" : "" , "Fecha" : ""]
+    json(result)
+	log.error("Error en generación de radicado en REST service.", e)
+}
+/************************************ Main Code ************************************/
+
+/***** Servicio para Generar el radicado de correspondencia - DGC 09/01/2020 BEGIN *****/
