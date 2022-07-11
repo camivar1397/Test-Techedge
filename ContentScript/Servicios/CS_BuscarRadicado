@@ -1,0 +1,106 @@
+/*
+████████╗███████╗ ██████╗██╗  ██╗███████╗██████╗  ██████╗ ███████╗    ████████╗███████╗ █████╗ ███╗   ███╗
+╚══██╔══╝██╔════╝██╔════╝██║  ██║██╔════╝██╔══██╗██╔════╝ ██╔════╝    ╚══██╔══╝██╔════╝██╔══██╗████╗ ████║
+   ██║   █████╗  ██║     ███████║█████╗  ██║  ██║██║  ███╗█████╗         ██║   █████╗  ███████║██╔████╔██║
+   ██║   ██╔══╝  ██║     ██╔══██║██╔══╝  ██║  ██║██║   ██║██╔══╝         ██║   ██╔══╝  ██╔══██║██║╚██╔╝██║
+   ██║   ███████╗╚██████╗██║  ██║███████╗██████╔╝╚██████╔╝███████╗       ██║   ███████╗██║  ██║██║ ╚═╝ ██║
+   ╚═╝   ╚══════╝ ╚═════╝╚═╝  ╚═╝╚══════╝╚═════╝  ╚═════╝ ╚══════╝       ╚═╝   ╚══════╝╚═╝  ╚═╝╚═╝     ╚═╝
+                                            ╦╔╗╔╔═╗╔═╗╦╦═╗╦╔╗╔╔═╗  ╔╦╗╦═╗╦ ╦╔═╗╔╦╗  ╔═╗╦  ╔═╗╔╗ ╔═╗╦  ╦ ╦ ╦
+                                            ║║║║╚═╗╠═╝║╠╦╝║║║║║ ╦   ║ ╠╦╝║ ║╚═╗ ║   ║ ╦║  ║ ║╠╩╗╠═╣║  ║ ╚╦╝
+                                            ╩╝╚╝╚═╝╩  ╩╩╚═╩╝╚╝╚═╝   ╩ ╩╚═╚═╝╚═╝ ╩   ╚═╝╩═╝╚═╝╚═╝╩ ╩╩═╝╩═╝╩ 
+*/
+/***** Busca todos los WF/Radicados de Correspondencia - DGC 24/01/2020 BEGIN *****/
+
+/*
+	Utility function to find an entry by ID in the database.
+*/
+def getByID(String id) {    
+    def sqlCode = """SELECT 'Interna' AS Origen, ZMem.VolumeID AS ID, ISNULL(ZMem.Radicado,'No tiene') AS Radicado, WSM.SubWork_Title AS Text
+                     FROM Z_COR_Memorando ZMem
+                     INNER JOIN WWork WWM ON (ZMem.VolumeID = WWM.Work_WorkID)
+                     INNER JOIN WSubWork WSM ON (WWM.Work_WorkID = WSM.SubWork_WorkID) AND (WWM.Work_WorkID = WSM.SubWork_SubWorkID)
+                     WHERE ZMem.RowSeqNum = 1 AND ZMem.VolumeID = ${id}
+                     UNION ALL
+                     SELECT 'Externa' AS Origen, ZCarta.VolumeID AS ID, ISNULL(ZCarta.Radicado,'No tiene') AS Radicado, WSC.SubWork_Title AS Text
+                     FROM Z_COR_Carta ZCarta
+                     INNER JOIN WWork WWC ON (ZCarta.VolumeID = WWC.Work_WorkID)
+                     INNER JOIN WSubWork WSC ON (WWC.Work_WorkID = WSC.SubWork_WorkID) AND (WWC.Work_WorkID = WSC.SubWork_SubWorkID)
+                     WHERE ZCarta.RowSeqNum = 1 AND ZCarta.VolumeID = ${id}
+                     UNION ALL
+                     SELECT 'Fisica' AS Origen, ZFisica.Seq AS ID, ISNULL(ZFisica.Radicado,'No tiene') AS Radicado,
+                     CONCAT(ZFisica.Seq, ' Correspondencia Física') AS Text
+                     FROM Z_COR_RadicacionFisica ZFisica
+                     WHERE ZFisica.RowSeqNum = 1 AND ZFisica.Seq = ${id}
+                  """
+    Boolean cursorEnabled = false 
+    Boolean transactionEnabled = false
+    Integer recordLimit = 1
+    def result = sql.runSQLFast(sqlCode,  cursorEnabled,  transactionEnabled,  recordLimit).rows.collect{
+          [ id:it.ID, text:it.Text, desc:"No. Radicado: ${it.Radicado} (${it.Origen})", image:"${img}empty.gif" ]
+    }
+    
+    if(result){    
+        return result[0]
+    }
+    else{
+        return []
+    }
+}
+
+/*
+	Utility function to find entries in the database.
+*/
+def getAll(String searchTerm) {
+    String cond = ""
+    if(searchTerm){
+        cond = "WHERE (UPPER(Text) LIKE UPPER('%${searchTerm}%') OR UPPER(Radicado) LIKE UPPER('%${searchTerm}%'))"
+    }
+    
+    def sqlCode = """SELECT Origen, ID, Radicado, Text FROM(
+                     SELECT 'Interna' AS Origen, ZMem.VolumeID AS ID, ISNULL(ZMem.Radicado,'No tiene') AS Radicado, WS.SubWork_Title AS Text
+                     FROM Z_COR_Memorando ZMem
+                     INNER JOIN WWork WW ON (ZMem.VolumeID = WW.Work_WorkID)
+                     INNER JOIN WSubWork WS ON (WW.Work_WorkID = WS.SubWork_WorkID) AND (WW.Work_WorkID = WS.SubWork_SubWorkID)
+                     WHERE ZMem.RowSeqNum = 1 AND ZMem.Estado NOT IN ('Anulado', 'Finalizado')
+                     UNION ALL
+                     SELECT 'Externa' AS Origen, ZCarta.VolumeID AS ID, ISNULL(ZCarta.Radicado,'No tiene') AS Radicado, WSC.SubWork_Title AS Text
+                     FROM Z_COR_Carta ZCarta
+                     INNER JOIN WWork WWC ON (ZCarta.VolumeID = WWC.Work_WorkID)
+                     INNER JOIN WSubWork WSC ON (WWC.Work_WorkID = WSC.SubWork_WorkID) AND (WWC.Work_WorkID = WSC.SubWork_SubWorkID)
+                     WHERE ZCarta.RowSeqNum = 1 AND ZCarta.Estado NOT IN ('Anulado', 'Finalizado')
+                     UNION ALL
+                     SELECT 'Fisica' AS Origen, ZFisica.Seq AS ID, ISNULL(ZFisica.Radicado,'No tiene') AS Radicado,
+                     CONCAT(ZFisica.Seq, ' Correspondencia Física') AS Text
+                     FROM Z_COR_RadicacionFisica ZFisica
+                     WHERE ZFisica.RowSeqNum = 1 AND ZFisica.Estado NOT IN ('Anulado', 'Finalizado')
+                     AND ZFisica.TipoEnvio <> 'DELE'
+                     ) AS COM
+                     ${cond}
+                     ORDER BY ID
+                  """
+    
+    Boolean cursorEnabled = false 
+    Boolean transactionEnabled = false
+    Integer recordLimit = 1
+    def result = sql.runSQLFast(sqlCode,  cursorEnabled,  transactionEnabled,  recordLimit).rows.collect{
+        [ id:it.ID, text:it.Text , desc:"No. Radicado: ${it.Radicado} (${it.Origen})", image:"${img}empty.gif" ]}
+    return result
+}
+
+/*
+	Main code
+*/
+try{
+        
+    if(params.id){
+    	result = getByID(params.id)
+    } else {
+        result = getAll(params.term)
+    }
+    //return result
+    json(result)
+
+} catch(e) {
+	log.error("Error en Busqueda de WF Correspondencia en REST service.", e)
+}
+/***** Busca todos los WF/Radicados de Correspondencia - DGC 24/01/2020 END *****/
