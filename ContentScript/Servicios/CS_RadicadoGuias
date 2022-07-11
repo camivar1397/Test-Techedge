@@ -1,0 +1,91 @@
+/*
+████████╗███████╗ ██████╗██╗  ██╗███████╗██████╗  ██████╗ ███████╗    ████████╗███████╗ █████╗ ███╗   ███╗
+╚══██╔══╝██╔════╝██╔════╝██║  ██║██╔════╝██╔══██╗██╔════╝ ██╔════╝    ╚══██╔══╝██╔════╝██╔══██╗████╗ ████║
+   ██║   █████╗  ██║     ███████║█████╗  ██║  ██║██║  ███╗█████╗         ██║   █████╗  ███████║██╔████╔██║
+   ██║   ██╔══╝  ██║     ██╔══██║██╔══╝  ██║  ██║██║   ██║██╔══╝         ██║   ██╔══╝  ██╔══██║██║╚██╔╝██║
+   ██║   ███████╗╚██████╗██║  ██║███████╗██████╔╝╚██████╔╝███████╗       ██║   ███████╗██║  ██║██║ ╚═╝ ██║
+   ╚═╝   ╚══════╝ ╚═════╝╚═╝  ╚═╝╚══════╝╚═════╝  ╚═════╝ ╚══════╝       ╚═╝   ╚══════╝╚═╝  ╚═╝╚═╝     ╚═╝
+                                            ╦╔╗╔╔═╗╔═╗╦╦═╗╦╔╗╔╔═╗  ╔╦╗╦═╗╦ ╦╔═╗╔╦╗  ╔═╗╦  ╔═╗╔╗ ╔═╗╦  ╦ ╦ ╦
+                                            ║║║║╚═╗╠═╝║╠╦╝║║║║║ ╦   ║ ╠╦╝║ ║╚═╗ ║   ║ ╦║  ║ ║╠╩╗╠═╣║  ║ ╚╦╝
+                                            ╩╝╚╝╚═╝╩  ╩╩╚═╩╝╚╝╚═╝   ╩ ╩╚═╚═╝╚═╝ ╩   ╚═╝╩═╝╚═╝╚═╝╩ ╩╩═╝╩═╝╩ 
+*/
+/***** Busca los radicados fisicos y en contingencia para el cargue de guias - DGC 18/09/2020 BEGIN *****/
+
+/*
+	Utility function to find an entry by ID in the database.
+*/
+def getByID(String id) {    
+    def sqlCode = """SELECT Radicado
+                     FROM
+                     (SELECT RF.Radicado, RF.Estado
+                     FROM Z_COR_RadicacionFisica RF
+                     WHERE RowSeqNum = 1
+                     UNION ALL
+                     SELECT CR.Radicado, CR.Estado
+                     FROM Z_COR_ContingenciaRadicados CR) AS Rad
+                     WHERE Radicado = '${id}'
+                     AND Estado <> 'Anulado'
+                     ORDER BY Radicado
+                  """
+    Boolean cursorEnabled = false 
+    Boolean transactionEnabled = false
+    Integer recordLimit = 1
+    def result = sql.runSQLFast(sqlCode,  cursorEnabled,  transactionEnabled,  recordLimit).rows.collect{
+          [ id:it.Radicado, text:it.Radicado, desc:"", image:"${img}empty.gif" ]
+    }
+    
+    if(result){    
+        return result[0]
+    }
+    else{
+        return []
+    }
+}
+
+/*
+	Utility function to find entries in the database.
+*/
+def getAll(String searchTerm) {
+    String cond = ""
+    if(searchTerm){
+        cond = "AND UPPER(Radicado) LIKE UPPER('%${searchTerm}%')"
+    }
+    
+    def sqlCode = """SELECT Radicado
+                     FROM
+                     (SELECT RF.Radicado, RF.Estado
+                     FROM Z_COR_RadicacionFisica RF
+                     WHERE RowSeqNum = 1
+                     UNION ALL
+                     SELECT CR.Radicado, CR.Estado
+                     FROM Z_COR_ContingenciaRadicados CR) AS Rad
+                     WHERE Estado <> 'Anulado'
+                     ${cond}
+                     ORDER BY Radicado
+                  """
+
+    Boolean cursorEnabled = false 
+    Boolean transactionEnabled = false
+    Integer recordLimit = 1
+    def result = sql.runSQLFast(sqlCode,  cursorEnabled,  transactionEnabled,  recordLimit).rows.collect{
+        [ id:it.Radicado, text:it.Radicado , desc:"", image:"${img}empty.gif" ]}
+    return result
+}
+
+/*
+	Main code
+*/
+try{
+        
+    if(params.id){
+    	result = getByID(params.id)
+    } else {
+        result = getAll(params.term)
+    }
+    //return result
+    json(result)
+
+} catch(e) {
+	log.error("Error en busqueda de radicados en cargue de guias", e)
+}
+/***** Busca los radicados fisicos y en contingencia para el cargue de guias - DGC 18/09/2020 END *****/
