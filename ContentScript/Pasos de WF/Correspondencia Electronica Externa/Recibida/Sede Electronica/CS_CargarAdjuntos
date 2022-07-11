@@ -1,0 +1,87 @@
+/*
+████████╗███████╗ ██████╗██╗  ██╗███████╗██████╗  ██████╗ ███████╗    ████████╗███████╗ █████╗ ███╗   ███╗
+╚══██╔══╝██╔════╝██╔════╝██║  ██║██╔════╝██╔══██╗██╔════╝ ██╔════╝    ╚══██╔══╝██╔════╝██╔══██╗████╗ ████║
+   ██║   █████╗  ██║     ███████║█████╗  ██║  ██║██║  ███╗█████╗         ██║   █████╗  ███████║██╔████╔██║
+   ██║   ██╔══╝  ██║     ██╔══██║██╔══╝  ██║  ██║██║   ██║██╔══╝         ██║   ██╔══╝  ██╔══██║██║╚██╔╝██║
+   ██║   ███████╗╚██████╗██║  ██║███████╗██████╔╝╚██████╔╝███████╗       ██║   ███████╗██║  ██║██║ ╚═╝ ██║
+   ╚═╝   ╚══════╝ ╚═════╝╚═╝  ╚═╝╚══════╝╚═════╝  ╚═════╝ ╚══════╝       ╚═╝   ╚══════╝╚═╝  ╚═╝╚═╝     ╚═╝
+                                            ╦╔╗╔╔═╗╔═╗╦╦═╗╦╔╗╔╔═╗  ╔╦╗╦═╗╦ ╦╔═╗╔╦╗  ╔═╗╦  ╔═╗╔╗ ╔═╗╦  ╦ ╦ ╦
+                                            ║║║║╚═╗╠═╝║╠╦╝║║║║║ ╦   ║ ╠╦╝║ ║╚═╗ ║   ║ ╦║  ║ ║╠╩╗╠═╣║  ║ ╚╦╝
+                                            ╩╝╚╝╚═╝╩  ╩╩╚═╩╝╚╝╚═╝   ╩ ╩╚═╚═╝╚═╝ ╩   ╚═╝╩═╝╚═╝╚═╝╩ ╩╩═╝╩═╝╩ 
+*/
+/***** Paso de WF para cargar los archivos adjuntos a SharePoint - DGC 18/052020 BEGIN *****/
+
+//**** Declaracion de constantes
+APC = docman.getScriptByNickname("am_correspondencia_config").getCSVars()?.app
+WFSTATUS = workflow.getWorkflowStatus(workID, subWorkID)
+WFATTACHMENTS = WFSTATUS.attachments
+WFANEXOS = docman.getNodeByName(WFATTACHMENTS, "Anexos")
+FORM = forms.getWorkFlowFormDirect(WFSTATUS, "Form")
+URLFOLDER = "https://co-explorationlab.r53.techedgegroup.com/OTCS/cs.exe?func=ll&objId=${WFANEXOS.ID}&objAction=browse"
+
+//**** Declaracion de variables
+def listemails = []
+
+/******************************************Main Code BEGIN******************************************/
+try{
+    
+    //Validar correos
+    setmails(listemails)
+    
+    //Cargar adjuntos
+    uploadAttachments(listemails)
+    
+}catch(e){
+    log.error("Error en el cargue de adjuntos a Sharepoint", e)
+}
+/******************************************Main Code END******************************************/
+
+/*****************************************Functions BEGIN*****************************************/
+
+//Funcion para llenar la lista de correos
+def setmails(listemails){
+    
+    //Agregar correo remitente
+    listemails.add(FORM.decorreo.value)
+    
+    //Agregar correos en copia
+    FORM.cc.each{email->
+        if(!email.value.isEmpty()){
+            listemails.add(email.value)
+        }
+    }
+}
+
+//Funcion para cargar adjuntos a Sharepoint
+def uploadAttachments(listemails){
+        
+    def result = runCS("${APC.subScripts.sharepoint}","${workID}","${subWorkID}","${FORM.radicado.value}","${listemails.unique().toString().replace("[","").replace("]","")}")
+    
+    if(result.msgcode){
+        FORM.anexos.value= ""
+        FORM.anexos.value+= "<ul>"
+        //Hipervinculo para usuarios internos de Ecopetrol
+        FORM.anexos.value+= "<li>Haz clic <a href=\"${URLFOLDER}\">aquí</a>, si tienes acceso a Techedge - Content Server y deseas ver los anexos</li>"
+        
+        //Hipervinculo para usuarios externos de Ecopetrol
+        int size = result.share[0].value.size()
+        for(int i=0; i<size; i++){
+            if(result.share[0].value[i].link){
+                FORM.anexos.value+= "<li>Haz clic <a href=\"${result.share[0].value[i].link.webUrl}\">aquí</a>, si eres un usuario externo y deseas ver los anexos</li>"
+            }
+        }
+        FORM.anexos.value+= "</ul>"
+        FORM.idcarpetasharepoint.value = result.folder[0].id
+        
+        //Actualizar el form en el WF
+        forms.updateWorkFlowFormDirect(WFSTATUS, "Form", FORM)
+        
+    }else{
+        log.error("Error en el cargue de adjuntos a Sharepoint ${result.msgdesc}")
+    }
+}
+
+/*****************************************Functions END*****************************************/
+
+/***** Paso de WF para cargar los archivos adjuntos a SharePoint - DGC 18/052020 END *****/
+
