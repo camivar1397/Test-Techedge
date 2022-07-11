@@ -1,0 +1,55 @@
+/*
+████████╗███████╗ ██████╗██╗  ██╗███████╗██████╗  ██████╗ ███████╗    ████████╗███████╗ █████╗ ███╗   ███╗
+╚══██╔══╝██╔════╝██╔════╝██║  ██║██╔════╝██╔══██╗██╔════╝ ██╔════╝    ╚══██╔══╝██╔════╝██╔══██╗████╗ ████║
+   ██║   █████╗  ██║     ███████║█████╗  ██║  ██║██║  ███╗█████╗         ██║   █████╗  ███████║██╔████╔██║
+   ██║   ██╔══╝  ██║     ██╔══██║██╔══╝  ██║  ██║██║   ██║██╔══╝         ██║   ██╔══╝  ██╔══██║██║╚██╔╝██║
+   ██║   ███████╗╚██████╗██║  ██║███████╗██████╔╝╚██████╔╝███████╗       ██║   ███████╗██║  ██║██║ ╚═╝ ██║
+   ╚═╝   ╚══════╝ ╚═════╝╚═╝  ╚═╝╚══════╝╚═════╝  ╚═════╝ ╚══════╝       ╚═╝   ╚══════╝╚═╝  ╚═╝╚═╝     ╚═╝
+                                            ╦╔╗╔╔═╗╔═╗╦╦═╗╦╔╗╔╔═╗  ╔╦╗╦═╗╦ ╦╔═╗╔╦╗  ╔═╗╦  ╔═╗╔╗ ╔═╗╦  ╦ ╦ ╦
+                                            ║║║║╚═╗╠═╝║╠╦╝║║║║║ ╦   ║ ╠╦╝║ ║╚═╗ ║   ║ ╦║  ║ ║╠╩╗╠═╣║  ║ ╚╦╝
+                                            ╩╝╚╝╚═╝╩  ╩╩╚═╩╝╚╝╚═╝   ╩ ╩╚═╚═╝╚═╝ ╩   ╚═╝╩═╝╚═╝╚═╝╩ ╩╩═╝╩═╝╩ 
+*/
+/***** CS para enviar notificación finalización del WF - LPA 17/01/2020 BEGIN *****/
+
+//Cargar APP del proceso
+apc = docman.getScriptByNickname("am_correspondencia_config").getCSVars()?.app
+
+def WFStatus = workflow.getWorkflowStatus(workID, subWorkID)
+def form = forms.getWorkFlowFormDirect(WFStatus, "Form")
+
+//Asunto y Cuerpo del correo
+def emailTemplate = docman.getNode(apc.constants.correofinalmemo)
+String asunto = "Finalización de comunicación interna No. ${form.radicado.value}"
+String email= "<tr>"
+email+="<td align='justify'>${form.asunto.value}</td>"
+email+="<td align='center'><a href='https://co-explorationlab.r53.techedgegroup.com/${url}?func=ll&objId=${form.idcarpeta.value}&objAction=browse' target='_NOBLANK'>${form.radicado.value}</a></td>"
+email+="<td align='center'>${form.fecharadicado.valueAsDate.format('dd/MM/yyyy hh:mm:ss a')}</td>"
+def tipoCom = runCS("${apc.subScripts.siglatovalue}", "Parametros", "${form.tipocomunicacion.value}", null, null, "TIPC" ).result
+email+="<td align='center'>${tipoCom}</td>"
+email+="<td align='center'>${users.getUserById(form.de[0].usuario.value as long).displayName}</td>"
+def DepCom = runCS("${apc.subScripts.siglatovalue}", "Z_COR_Dependencias", "${form.de[0].dependencia.value}", "Sigla", "Nombre", null ).result
+email+="<td align='center'>${DepCom}</td>"
+email+="<td align='center'>${form.nanexos.value}</td>"
+email+="</tr>"
+email+="<br><br><br><br>"
+
+def emailContext = ['asunto':"<h1>${asunto}</h1>", 'body': email]
+def mailbody = template.evaluateTemplate(emailTemplate, emailContext)
+correo = mail.create(mailbody)
+
+//Usuario solicitante
+correo.to(users.getUserById(form.usuariomodificacion.value as long).email)
+
+//Enviar Correo
+correo.from("correspondenciatechedgecol@gmail.com")
+correo.subject(asunto)
+mail.send(correo, "correspondencia")
+
+//Actualizar el estado del Form
+form.estado.value = "Finalizado"
+forms.updateWorkFlowFormDirect(WFStatus, "Form", form)
+/***** CS para enviar notificación finalización del WF - LPA 17/01/2020 END *****/
+
+
+
+
