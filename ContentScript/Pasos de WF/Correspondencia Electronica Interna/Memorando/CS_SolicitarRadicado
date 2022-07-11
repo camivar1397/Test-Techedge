@@ -1,0 +1,95 @@
+/*
+████████╗███████╗ ██████╗██╗  ██╗███████╗██████╗  ██████╗ ███████╗    ████████╗███████╗ █████╗ ███╗   ███╗
+╚══██╔══╝██╔════╝██╔════╝██║  ██║██╔════╝██╔══██╗██╔════╝ ██╔════╝    ╚══██╔══╝██╔════╝██╔══██╗████╗ ████║
+   ██║   █████╗  ██║     ███████║█████╗  ██║  ██║██║  ███╗█████╗         ██║   █████╗  ███████║██╔████╔██║
+   ██║   ██╔══╝  ██║     ██╔══██║██╔══╝  ██║  ██║██║   ██║██╔══╝         ██║   ██╔══╝  ██╔══██║██║╚██╔╝██║
+   ██║   ███████╗╚██████╗██║  ██║███████╗██████╔╝╚██████╔╝███████╗       ██║   ███████╗██║  ██║██║ ╚═╝ ██║
+   ╚═╝   ╚══════╝ ╚═════╝╚═╝  ╚═╝╚══════╝╚═════╝  ╚═════╝ ╚══════╝       ╚═╝   ╚══════╝╚═╝  ╚═╝╚═╝     ╚═╝
+                                            ╦╔╗╔╔═╗╔═╗╦╦═╗╦╔╗╔╔═╗  ╔╦╗╦═╗╦ ╦╔═╗╔╦╗  ╔═╗╦  ╔═╗╔╗ ╔═╗╦  ╦ ╦ ╦
+                                            ║║║║╚═╗╠═╝║╠╦╝║║║║║ ╦   ║ ╠╦╝║ ║╚═╗ ║   ║ ╦║  ║ ║╠╩╗╠═╣║  ║ ╚╦╝
+                                            ╩╝╚╝╚═╝╩  ╩╩╚═╩╝╚╝╚═╝   ╩ ╩╚═╚═╝╚═╝ ╩   ╚═╝╩═╝╚═╝╚═╝╩ ╩╩═╝╩═╝╩ 
+*/
+/***** CS para solicitar radicado - DGC 16/01/2020 BEGIN *****/
+import java.text.SimpleDateFormat
+import java.util.Date
+
+//Cargar constantes
+apc = docman.getScriptByNickname("am_correspondencia_config").getCSVars()?.app
+
+//Cargar datos del WF y Form
+def WFStatus = workflow.getWorkflowStatus(workID, subWorkID)
+def WFAttachment = WFStatus.getAttachmentsFolder()
+def Anexos = docman.getNodeByName(WFAttachment, "Anexos")
+def form = forms.getWorkFlowFormDirect(WFStatus, "Form")
+int NAnexos = Anexos.getChildren().size()
+
+//Campos del Formulario
+def dependencia = runCS("${apc.subScripts.siglatovalue}", "Z_COR_Dependencias", "${form.para[0].dependencia.value}", "Sigla", "Nombre", null).result
+def solicitante = users.getUserById(form.usuariomodificacion.value as long).displayName
+def destinatario = users.getUserById(form.para[0].usuario.value as long).displayName
+
+//Evaluar si el radicado no existe
+if(form.radicado.value.isEmpty()){
+    //Solicitar radicado
+    result = runCS("${apc.subScripts.generarradicado}", "Memorando", "2", "ELE", "OT", "${solicitante}", "${dependencia}", "${destinatario}", "${NAnexos}", "${0}")
+
+    //Actualizar form
+    form.radicado.value = result.Radicado
+    Date fecharadicado = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS").parse("${result.Fecha}")
+    form.fecharadicado.value = fecharadicado
+    form.dependencia.value = dependencia
+    form.destino.value = destinatario
+    form.nanexos.value = NAnexos
+    
+    while(NAnexos>form.idanexo.size()){
+        form.idanexo.addField(form.idanexo.size())
+    }
+
+    while(NAnexos<form.idanexo.size() && form.idanexo.size()>1){
+        form.idanexo.removeField(form.idanexo.size()-1)
+    }
+    
+    form.anexos.value = ""
+    form.anexos.value += "<ul>"
+    Anexos.getChildren().eachWithIndex{node,index ->
+        if(node != null){
+            form.idanexo[index].value = node.ID
+            form.anexos.value += "<li><a href=\"https://co-explorationlab.r53.techedgegroup.com/OTCS/cs.exe?func=ll&objId=${node.ID}&objAction=Open\">${node.name}</a></li>"
+        }else{
+            form.idanexo[index].value = ""
+        }
+    }
+    form.anexos.value += "</ul>"
+
+    forms.updateWorkFlowFormDirect(WFStatus,"Form", form)
+}else{
+    //Si el radicado existe actualizar datos del formulario
+    form.dependencia.value = dependencia
+    form.destino.value = destinatario
+    form.nanexos.value = NAnexos
+    
+    while(NAnexos>form.idanexo.size()){
+        form.idanexo.addField(form.idanexo.size())
+    }
+
+    while(NAnexos<form.idanexo.size() && form.idanexo.size()>1){
+        form.idanexo.removeField(form.idanexo.size()-1)
+    }
+    
+    form.anexos.value = ""
+    form.anexos.value += "<ul>"
+    Anexos.getChildren().eachWithIndex{node,index ->
+        if(node != null){
+            form.idanexo[index].value = node.ID
+            form.anexos.value += "<li><a href=\"https://co-explorationlab.r53.techedgegroup.com/OTCS/cs.exe?func=ll&objId=${node.ID}&objAction=Open\">${node.name}</a></li>"
+        }else{
+            form.idanexo[index].value = ""
+        }
+    }
+    form.anexos.value += "</ul>"
+
+    forms.updateWorkFlowFormDirect(WFStatus,"Form", form)
+}
+/***** CS para solicitar radicado - DGC 16/01/2020 END *****/
+
+
