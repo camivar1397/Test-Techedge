@@ -1,0 +1,23 @@
+[LL_WEBREPORT_FORCEUTF8 /]
+<table border="1">
+    <tr>
+        <th>CGC</th>
+        <th>Ruta</th>
+        <th>Edificio</th>
+        <th>Piso/Área</th>
+        <th>Activo</th>
+    </tr>
+[LL_WEBREPORT_STARTROW /]
+    <tr>
+        <td>[LL_REPTAG='CGCSigla' /]</td>
+        <td>[LL_REPTAG='Ruta' /]</td>
+        <td>[LL_REPTAG='Edificio' /]</td>
+        <td>[LL_REPTAG='AreaPiso' /]</td>
+        [LL_WEBREPORT_IF "[LL_REPTAG='Activo' /]" == "1" /]
+            <td>Si</td>
+        [LL_WEBREPORT_ELSE /]
+            <td>No</td>
+        [LL_WEBREPORT_ENDIF /]
+    </tr>
+[LL_WEBREPORT_ENDROW /]
+</table>
