@@ -1,0 +1,73 @@
+/*
+████████╗███████╗ ██████╗██╗  ██╗███████╗██████╗  ██████╗ ███████╗    ████████╗███████╗ █████╗ ███╗   ███╗
+╚══██╔══╝██╔════╝██╔════╝██║  ██║██╔════╝██╔══██╗██╔════╝ ██╔════╝    ╚══██╔══╝██╔════╝██╔══██╗████╗ ████║
+   ██║   █████╗  ██║     ███████║█████╗  ██║  ██║██║  ███╗█████╗         ██║   █████╗  ███████║██╔████╔██║
+   ██║   ██╔══╝  ██║     ██╔══██║██╔══╝  ██║  ██║██║   ██║██╔══╝         ██║   ██╔══╝  ██╔══██║██║╚██╔╝██║
+   ██║   ███████╗╚██████╗██║  ██║███████╗██████╔╝╚██████╔╝███████╗       ██║   ███████╗██║  ██║██║ ╚═╝ ██║
+   ╚═╝   ╚══════╝ ╚═════╝╚═╝  ╚═╝╚══════╝╚═════╝  ╚═════╝ ╚══════╝       ╚═╝   ╚══════╝╚═╝  ╚═╝╚═╝     ╚═╝
+                                            ╦╔╗╔╔═╗╔═╗╦╦═╗╦╔╗╔╔═╗  ╔╦╗╦═╗╦ ╦╔═╗╔╦╗  ╔═╗╦  ╔═╗╔╗ ╔═╗╦  ╦ ╦ ╦
+                                            ║║║║╚═╗╠═╝║╠╦╝║║║║║ ╦   ║ ╠╦╝║ ║╚═╗ ║   ║ ╦║  ║ ║╠╩╗╠═╣║  ║ ╚╦╝
+                                            ╩╝╚╝╚═╝╩  ╩╩╚═╩╝╚╝╚═╝   ╩ ╩╚═╚═╝╚═╝ ╩   ╚═╝╩═╝╚═╝╚═╝╩ ╩╩═╝╩═╝╩ 
+*/
+/***** CS para enviar notificación CC del WF - LPA 10/02/2020 BEGIN *****/
+
+//Cargar APP del proceso
+apc = docman.getScriptByNickname("am_correspondencia_config").getCSVars()?.app
+
+//Cargar Instancia de WF y Formulario
+def WFStatus = workflow.getWorkflowStatus(workID, subWorkID)
+def form = forms.getWorkFlowFormDirect(WFStatus, "Form")
+def WFAttachment = WFStatus.attachments
+def WFAttributes = WFStatus.getAttributes()
+def WFAtCopInt = WFAttributes.data."CopiaInternos"
+def WFAtCopExt = WFAttributes.data."CopiaExternos"
+
+//Cargar Carta
+def cartaID = docman.getNodeByName(WFAttachment, "${form.radicado.value}.pdf").ID
+def cartaDoc = docman.getDocument(cartaID as long)
+
+//Asunto y Cuerpo del correo
+def emailTemplate = docman.getNode(apc.constants.correofinalcarta)
+String asunto = "Copia Comunicación externa No. ${form.radicado.value}"
+String email= "<tr>"
+email+="<td align='justify'>${form.asunto.value}</td>"
+email+="<td align='center'>${form.radicado.value}</td>"
+email+="<td align='center'>${form.fecharadicado.valueAsDate.format('dd/MM/yyyy hh:mm:ss a')}</td>"
+def tipoCom = runCS("${apc.subScripts.siglatovalue}", "Parametros", "${form.tipocomunicacion.value}", null, null, "TIPC" ).result
+email+="<td align='center'>${tipoCom}</td>"
+email+="<td align='center'>${users.getUserById(form.deusuario.value as long).displayName}</td>"
+def DepCom = runCS("${apc.subScripts.siglatovalue}", "Z_COR_Dependencias", "${form.dedependencia.value}", "Sigla", "Nombre", null ).result
+email+="<td align='center'>${DepCom}</td>"
+email+="<td align='center'>${form.nanexos.value}</td>"
+email+="</tr>"
+
+def emailContext = ['asunto':"<h1>${asunto}</h1>", 'body': email]
+def mailbody = template.evaluateTemplate(emailTemplate, emailContext)
+correo = mail.create(mailbody)
+
+//lista de Copiados Internos
+for(int i=0; i<WFAtCopInt.size(); i++){
+    if(WFAtCopInt[i] != null){
+        correo.to(WFAtCopInt[i])
+    }
+}
+
+//lista de Copiados Externos
+for(int i=0; i<WFAtCopExt.size(); i++){
+    if(WFAtCopExt[i] != null){
+        correo.to(WFAtCopExt[i])
+    }
+}
+
+//Adjuntos en el correo
+correo.attach(cartaDoc)
+
+//Enviar Correo
+correo.from("correspondenciatechedgecol@gmail.com")
+correo.subject(asunto)
+mail.send(correo, "correspondencia")
+/***** CS para enviar notificación CC del WF - LPA 10/02/2020 END *****/
+
+
+
+
