@@ -1,0 +1,58 @@
+[LL_WEBREPORT_IF "[LL_REPTAG_&conHTML /]" == "0" /]
+    [LL_WEBREPORT_EXCLUDEHTML /]
+[LL_WEBREPORT_ENDIF /]
+
+[LL_WEBREPORT_TITLE TITLE1:"Parámetros:" TITLE2:" Excepciones" /]
+
+<link rel="stylesheet" href="/img/appearances/Ecopetrol/libs/css/jquery.dataTables.min.css">
+<link rel="stylesheet" href="/img/appearances/Ecopetrol/libs/css/responsive.dataTables.min.css">
+<link rel="stylesheet" href="/img/appearances/Ecopetrol/libs/reports/Reportes.css">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Exo+2:100,100i,400,400i,700,700i&amp;display=swap">
+<div align="right">
+    [//Boton para crear un nuevo Excepciones INICIO/]
+    <a class="btn btn-success" href="?func=ll&objId=[LL_REPTAG_$WF_ExcEmpresas /]&objAction=EditForm&nexturl=[LL_REPTAG_MYURL ESCAPEURL /]"><span class="glyphicon glyphicon-plus"></span> Nuevo</a>
+    [//Boton para crear un nuevo Excepciones FIN/]
+</div>
+<table id="myTable" class="table display" style="width:100%">
+    <thead>
+        <tr>
+            <th>Acciones</th>
+            <th>Empresa</th>
+            <th>Destinatarios</th>
+            <th>Correos</th>
+        </tr>
+    </thead>
+    <tbody>
+[LL_WEBREPORT_STARTROW /]
+        <tr>
+            <td>
+                 <a href="/OTCS/llisapi.dll?func=ll&objId=[LL_REPTAG='DataID' /]&objAction=EditForm&LL_seq=[LL_REPTAG='Seq' /]&nexturl=[LL_REPTAG_MYURL ESCAPEURL /]">
+                    <span class="glyphicon glyphicon-pencil"></span> Editar
+                </a>
+            </td>
+            <td>[LL_REPTAG='Empresa' /]</td>
+            <td>
+                <ul>
+                    [LL_WEBREPORT_FOR DATA:[LL_REPTAG='Destinatario' TOLIST:',' /] VAR:Dest /]
+                        <li>[LL_REPTAG_%Dest CURRENTVAL USERINFO:FULLNAME:FORCE /]</li>
+                    [LL_WEBREPORT_ENDFOR /] 
+                </ul>
+            </td>
+            <td>
+                <ul>
+                    [LL_WEBREPORT_FOR DATA:[LL_REPTAG='Correo' TOLIST:';' /] VAR:Correo /]
+                        <li>[LL_REPTAG_%Correo CURRENTVAL /]</li>
+                    [LL_WEBREPORT_ENDFOR /] 
+                </ul>
+            </td>
+        </tr>
+[LL_WEBREPORT_ENDROW /]
+    </tbody>
+    <tfoot>
+    </tfoot>
+</table>
+<script src="/img/core/jquery.min.js"></script>
+<script src="/img/appearances/Ecopetrol/libs/js/jquery.dataTables.min.js"></script>
+<script src="/img/appearances/Ecopetrol/libs/js/bootstrap.min.js"></script>
+<script src="/img/appearances/Ecopetrol/libs/js/dataTables.responsive.min.js"></script>
+<script src="/img/appearances/Ecopetrol/libs/reports/Reportes.js"></script>
