@@ -1,0 +1,62 @@
+/*
+████████╗███████╗ ██████╗██╗  ██╗███████╗██████╗  ██████╗ ███████╗    ████████╗███████╗ █████╗ ███╗   ███╗
+╚══██╔══╝██╔════╝██╔════╝██║  ██║██╔════╝██╔══██╗██╔════╝ ██╔════╝    ╚══██╔══╝██╔════╝██╔══██╗████╗ ████║
+   ██║   █████╗  ██║     ███████║█████╗  ██║  ██║██║  ███╗█████╗         ██║   █████╗  ███████║██╔████╔██║
+   ██║   ██╔══╝  ██║     ██╔══██║██╔══╝  ██║  ██║██║   ██║██╔══╝         ██║   ██╔══╝  ██╔══██║██║╚██╔╝██║
+   ██║   ███████╗╚██████╗██║  ██║███████╗██████╔╝╚██████╔╝███████╗       ██║   ███████╗██║  ██║██║ ╚═╝ ██║
+   ╚═╝   ╚══════╝ ╚═════╝╚═╝  ╚═╝╚══════╝╚═════╝  ╚═════╝ ╚══════╝       ╚═╝   ╚══════╝╚═╝  ╚═╝╚═╝     ╚═╝
+                                            ╦╔╗╔╔═╗╔═╗╦╦═╗╦╔╗╔╔═╗  ╔╦╗╦═╗╦ ╦╔═╗╔╦╗  ╔═╗╦  ╔═╗╔╗ ╔═╗╦  ╦ ╦ ╦
+                                            ║║║║╚═╗╠═╝║╠╦╝║║║║║ ╦   ║ ╠╦╝║ ║╚═╗ ║   ║ ╦║  ║ ║╠╩╗╠═╣║  ║ ╚╦╝
+                                            ╩╝╚╝╚═╝╩  ╩╩╚═╩╝╚╝╚═╝   ╩ ╩╚═╚═╝╚═╝ ╩   ╚═╝╩═╝╚═╝╚═╝╩ ╩╩═╝╩═╝╩ 
+*/
+/***** CS que crea el Shorcut de la carpeta Radicado - LPA 13/04/2020 BEGIN *****/
+
+//**** Declaracion de constantes
+WFSTATUS = workflow.getWorkflowStatus(workID, subWorkID)
+WFATTR = WFSTATUS.attributes
+WFATTRSH = WFATTR.data."AccesoDirecto"
+FORM = forms.getWorkFlowFormDirect(WFSTATUS, "Form")
+DEST = FORM.parausuario.value
+
+/******************************************Main Code BEGIN******************************************/
+try{
+    //Crear atajos
+    def shorcut = crearShorcut()
+    
+    //Agregar permisos al shorcut
+    addPermissions(shorcut)
+    
+}catch(e){
+    log.error("Error en la creacion de shorcuts", e)
+}
+/******************************************Main Code END******************************************/
+
+/*****************************************Functions BEGIN*****************************************/
+
+//Funcion para crear shorcuts
+def crearShorcut(){
+    def listShorcut = []
+    
+    //crear shorcuts
+    WFATTRSH.each{it->
+        if(it){
+            def destination = asCSNode(it as long)
+            def origin = asCSNode(FORM.idcarpeta.value as long)
+            def shortcut = docman.createShortcut(destination, origin.Name, origin)
+            listShorcut.add(shortcut)
+        }
+    }
+    return listShorcut
+}
+
+//Funcion para agregar permisos al shorcut
+def addPermissions(shorcut){
+    
+    //Agregar permisos
+    shorcut.each{it->
+       docman.setBaseRights(it, users.getUserById(DEST as long), null, false)         
+    }
+}
+/*****************************************Functions END*****************************************/
+
+/***** CS que crea el Shorcut de la carpeta Radicado - LPA 13/04/2020 END *****/
