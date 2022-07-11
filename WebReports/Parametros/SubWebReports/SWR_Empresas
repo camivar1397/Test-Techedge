@@ -1,0 +1,18 @@
+[LL_WEBREPORT_FORCEUTF8 /]
+<table border="1">
+    <tr>
+        <th>Nombre</th>
+        <th>NIT</th>
+        <th>Correo Electronico</th>
+    </tr>
+    
+[LL_WEBREPORT_STARTROW /]
+    <tr>
+        <td>[LL_REPTAG='Nombre' /]</td>
+        <td>[LL_REPTAG='NIT' /]</td>
+        <td>[LL_REPTAG='CorreoElectronico' /]</td>
+        
+    </tr>
+[LL_WEBREPORT_ENDROW /]
+</table>
+
