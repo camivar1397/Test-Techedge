@@ -1,0 +1,49 @@
+[LL_WEBREPORT_IF "[LL_REPTAG_&conHTML /]" == "0" /]
+    [LL_WEBREPORT_EXCLUDEHTML /]
+[LL_WEBREPORT_ENDIF /]
+
+[LL_WEBREPORT_TITLE TITLE1:"Recorridos internos:" TITLE2:"Editar tipo de envío" /]
+
+<link rel="stylesheet" href="/img/appearances/Ecopetrol/libs/css/jquery.dataTables.min.css">
+<link rel="stylesheet" href="/img/appearances/Ecopetrol/libs/css/responsive.dataTables.min.css">
+<link rel="stylesheet" href="/img/appearances/Ecopetrol/libs/reports/Reportes.css">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Exo+2:100,100i,400,400i,700,700i&amp;display=swap">
+
+<table id="myTable" class="table table-hover display dt-responsive" style="width:100%">
+    <thead>
+        <tr>
+            <th>No.</th>
+            <th>Origen comunicación</th>
+            <th>Usuario radicador</th>
+            <th>CGC</th>
+            <th>Radicado</th>
+            <th>Fecha radicado</th>
+            <th>Tipo de envío</th>
+            <th>Acción</th>
+        </tr>
+    </thead>
+    <tbody>
+[LL_WEBREPORT_STARTROW /]
+        <tr>
+            <td>[LL_REPTAG_ROWNUM /]</td>
+            <td>[LL_REPTAG='OrigenComunicado' /]</td>
+            <td>[LL_REPTAG='UsuarioRadicador' USERINFO:LASTNAME /][LL_REPTAG_', ' /][LL_REPTAG='UsuarioRadicador' USERINFO:FIRSTNAME /]</td>
+            <td>[LL_REPTAG='CGC' /]</td>
+            <td>[LL_REPTAG='Radicado' /]</td>
+            <td>[LL_REPTAG='FechaRadicado' DATE:'%d/%m/%Y %I:%M %p' /]</td>
+            <td>[LL_REPTAG='TipoEnvio' /]</td>
+            <td>[LL_WEBREPORT_IF "[LL_REPTAG='OrigenComunicado' /]" == "Enviada" /] <a href="/OTCS/llisapi.dll/displayform/2457/1563155/1565087/1565424/1565425/?viewid=[LL_REPTAG_$FT_RadicacionFisica CHILDREN FILTER:'"NAME" == "[LL_REPTAG_$BF_Reenviar /]"' PLUCK:DataID LIST:1 /]&readonly=false&sedit=false&objId=[LL_REPTAG=DataID /]&objAction=EditForm&LL_seq=[LL_REPTAG=Seq /]&nexturl=[LL_REPTAG_MYURL ESCAPEURL /]">Reenviar</a>
+                [LL_WEBREPORT_ELSE /] <a href="/OTCS/llisapi.dll/displayform/2457/1563155/1565087/1565424/1565425/?viewid=[LL_REPTAG_$FT_RadicacionFisica CHILDREN FILTER:'"NAME" == "[LL_REPTAG_$BF_Reasign /]"' PLUCK:DataID LIST:1 /]&readonly=false&sedit=false&objId=[LL_REPTAG=DataID /]&objAction=EditForm&LL_seq=[LL_REPTAG=Seq /]&nexturl=[LL_REPTAG_MYURL ESCAPEURL /]">Reasignar</a>
+                [LL_WEBREPORT_ENDIF /]
+            </td>
+        </tr>    
+[LL_WEBREPORT_ENDROW /]
+    </tbody>
+    <tfoot>
+    </tfoot>
+</table>
+<script src="/img/core/jquery.min.js"></script>
+<script src="/img/appearances/Ecopetrol/libs/js/jquery.dataTables.min.js"></script>
+<script src="/img/appearances/Ecopetrol/libs/js/bootstrap.min.js"></script>
+<script src="/img/appearances/Ecopetrol/libs/js/dataTables.responsive.min.js"></script>
+<script src="/img/appearances/Ecopetrol/libs/reports/Reportes.js"></script>
