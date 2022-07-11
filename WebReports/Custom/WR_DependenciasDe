@@ -1,0 +1,9 @@
+[/* Title: Blank Reportview */]
+[LL_WEBREPORT_EXCLUDEHTML /]
+<select class="form-control select2" name="depde" id="depde" multiple="multiple">
+    <option value="">Seleccione dependencia...</option>
+[LL_WEBREPORT_STARTROW /]
+    <option value="[LL_REPTAG=Sigla /]">[LL_REPTAG=Nombre /]</option>
+[LL_WEBREPORT_ENDROW /]
+
+</select>
