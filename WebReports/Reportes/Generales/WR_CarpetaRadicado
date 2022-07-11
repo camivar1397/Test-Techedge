@@ -1,0 +1,150 @@
+[LL_WEBREPORT_EXCLUDEHTML /]
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="ie=edge">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Exo+2:100,100i,400,400i,700,700i&amp;display=swap">
+    <link rel="stylesheet" href="/img/appearances/Ecopetrol/libs/css/bootstrap.css">
+    <link rel="stylesheet" href="/img/appearances/Ecopetrol/libs/css/jquery.dataTables.min.css">
+    <link rel="stylesheet" href="/img/appearances/Ecopetrol/libs/css/responsive.dataTables.min.css">
+    <link href="/img/ansbwebform/lib/v2/css/select2/select2.css?v=3.5.4" rel="stylesheet">
+    <link href="/img/ansbwebform/lib/v2/css/select2/select2-bootstrap.css?v=3.5.4" rel="stylesheet">
+    <link href="/img/ansbwebform/lib/v2/css/am/am_form.css?v=2.0.0" rel="stylesheet">
+    <link href="/img/ansbwebform/lib/v2/css/bootstrap-datetimepicker.min.css?v=4.17.37" rel="stylesheet">
+    <link href="/img/ansbwebform/lib/v2/css/bootstrap-datepicker3.min.css?v=1.5.1" rel="stylesheet">
+    <link href="/img/ansbwebform/lib/v2/css/font-awesome.min.css?v=4.5.0" rel="stylesheet">
+    <link rel="stylesheet" href="/img/appearances/Ecopetrol/libs/reports/Reportes.css">
+    <title>Radicado Nº XXXXXXXXXXX</title>
+    <style>
+        body{
+            font-family: 'Exo 2', sans-serif;
+            font-size: 14px;
+            margin-right: 10px;
+        }
+        
+        .am-form-button {
+            width: 100%;
+        }
+        
+        .head-folder{
+            display: flex;
+            justify-content: space-between;
+            padding-top: 20px;
+        }
+        
+        label{
+            font-size: 14px;
+        }
+        
+        .functionMenuHotspotWS::before { 
+            font-weight: 400; 
+            content: "\f0d7";
+        }
+        
+        a{
+            color: var(--c-black);
+        }
+        
+        a:hover{
+            color:var(--c-bace2);
+        }
+        
+        a:focus{
+            color: var(--c-base-dark);
+        }
+        
+        ol, ul {
+            padding-left: 14px;
+        }
+
+        .row{
+            padding-top: 24px;
+            padding-left: 24px;
+        }
+        
+        #errorContainer {
+            background: #e74c3c;
+            position: relative;
+            flex-basis: 100px;
+            flex-grow: 0;
+            flex-shrink: 0;
+            border: 0;
+            font-size: 14px;
+            color: #fff;
+            border-radius: 5px;
+            border-left-width: 10px;
+            padding: 15px;
+        }
+        
+        #errorContainer p {
+            margin: 0;
+        }
+    </style>
+</head>
+<body>
+    [LL_REPTAG_'<div id="errorContainer"><strong>Advertencia!</strong><p>No se ha podido acceder al elemento que ha solicitado. No existe o no tiene permiso para acceder a él. Si le han enviado un enlace a este elemento, póngase en contacto con el remitente para obtener ayuda.</p></div>' SETVAR:error /]
+    <h3>
+        <div class="head-folder">
+            <div>
+                [LL_REPTAG_&ParentID LLURL:GIF:LARGE /]
+                [LL_WEBREPORT_IF "[LL_REPTAG_'[LL_REPTAG_$GRP_Admin /]' USERINGROUP /]" == "TRUE" /] 
+                    <a target="_blank" href="[LL_REPTAG_URLPREFIX /][LL_REPTAG_&ParentID LLURL:BROWSE /]"> [LL_REPTAG_&ParentID NODEINFO:NAME /] </a>
+                [LL_WEBREPORT_ELSE /]
+                    [LL_REPTAG_&ParentID NODEINFO:NAME ONERROR:CUSTOM:'' /] 
+                [LL_WEBREPORT_ENDIF /]
+            </div>
+            [LL_WEBREPORT_IF "[LL_REPTAG_&Hijo /]" != "0" /]
+                <a class="btn btn-success" href="[LL_REPTAG_NEXTURL /]"> Back</a>
+            [LL_WEBREPORT_ELSE /]
+                <a class="btn btn-success" href="?func=ll&objId=[LL_REPTAG_&WREnviado /]&objAction=RunReport&conHTML=0&nexturl=[LL_REPTAG_MYURL ESCAPEURL /]"> Back</a>
+            [LL_WEBREPORT_ENDIF /]
+        </div>
+    </h3>
+    [LL_WEBREPORT_IF "[LL_REPTAG_&ParentID NODEINFO:NAME ONERROR:CUSTOM:'[LL_REPTAG_!error /]' /]" == "[LL_REPTAG_!error /]" /] 
+        [LL_REPTAG_&ParentID NODEINFO:NAME ONERROR:CUSTOM:'[LL_REPTAG_!error /]' /] 
+    [LL_WEBREPORT_ENDIF /]
+    
+    <div class="row">
+        [LL_WEBREPORT_STARTROW /]
+        <div class="col-xs-6">
+            <div class="media">
+                <div class="media-left media-middle">
+                    [LL_WEBREPORT_IF "[LL_REPTAG='DataID' NODEINFO:SUBTYPE /]" != "0" /]
+                    <a target="_blank" href="[LL_REPTAG_URLPREFIX /][LL_REPTAG='DataID' LLURL:FETCH /]">
+                        [LL_REPTAG='DataID' LLURL:GIF:LARGE /]
+                    </a>
+                    
+                    [LL_WEBREPORT_ELSE /]
+                    <a href="?func=ll&objId=[LL_REPTAG_MYID /]&objAction=RunReport&ParentID=[LL_REPTAG='DataID' /]&Hijo=1&nexturl=[LL_REPTAG_MYURL ESCAPEURL /]">
+                        [LL_REPTAG='DataID' LLURL:GIF:LARGE /]
+                    </a>
+                    [LL_WEBREPORT_ENDIF /]
+                </div>
+                <div class="media-body">
+                    <h4 class="media-heading">
+                        [LL_WEBREPORT_IF "[LL_REPTAG='DataID' NODEINFO:SUBTYPE /]" != "0" /]
+                        <a target="_blank" href="[LL_REPTAG_URLPREFIX /][LL_REPTAG='DataID' LLURL:FETCH /]">
+                            [LL_REPTAG='DataID' NODEINFO:NAME /]
+                        </a>
+                        [LL_WEBREPORT_ELSE /]
+                        <a href="?func=ll&objId=[LL_REPTAG_MYID /]&objAction=RunReport&ParentID=[LL_REPTAG='DataID' /]&Hijo=1&nexturl=[LL_REPTAG_MYURL ESCAPEURL /]">
+                            [LL_REPTAG='DataID' NODEINFO:NAME /]
+                        </a>
+                        [LL_WEBREPORT_ENDIF /]
+                    </h4>
+                    <ul>
+                        <li><b>Created by: </b>[LL_REPTAG='DataID' NODEINFO:CREATEDBY USERINFO:FULLNAME:FORCE /]</li>
+                        <li><b>Date: </b>[LL_REPTAG='DataID' NODEINFO:CREATEDATE DATE:%d/%m/%Y /]</li>
+                        <li><b>Size: </b>[LL_REPTAG='DataID' NODEINFO:SIZE /]</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+        [LL_WEBREPORT_ENDROW /]
+    </div>
+    <script src="/img/menu.js?v=1021.0"></script>
+</body>
+</html>
