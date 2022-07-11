@@ -1,0 +1,92 @@
+/*
+████████╗███████╗ ██████╗██╗  ██╗███████╗██████╗  ██████╗ ███████╗    ████████╗███████╗ █████╗ ███╗   ███╗
+╚══██╔══╝██╔════╝██╔════╝██║  ██║██╔════╝██╔══██╗██╔════╝ ██╔════╝    ╚══██╔══╝██╔════╝██╔══██╗████╗ ████║
+   ██║   █████╗  ██║     ███████║█████╗  ██║  ██║██║  ███╗█████╗         ██║   █████╗  ███████║██╔████╔██║
+   ██║   ██╔══╝  ██║     ██╔══██║██╔══╝  ██║  ██║██║   ██║██╔══╝         ██║   ██╔══╝  ██╔══██║██║╚██╔╝██║
+   ██║   ███████╗╚██████╗██║  ██║███████╗██████╔╝╚██████╔╝███████╗       ██║   ███████╗██║  ██║██║ ╚═╝ ██║
+   ╚═╝   ╚══════╝ ╚═════╝╚═╝  ╚═╝╚══════╝╚═════╝  ╚═════╝ ╚══════╝       ╚═╝   ╚══════╝╚═╝  ╚═╝╚═╝     ╚═╝
+                                            ╦╔╗╔╔═╗╔═╗╦╦═╗╦╔╗╔╔═╗  ╔╦╗╦═╗╦ ╦╔═╗╔╦╗  ╔═╗╦  ╔═╗╔╗ ╔═╗╦  ╦ ╦ ╦
+                                            ║║║║╚═╗╠═╝║╠╦╝║║║║║ ╦   ║ ╠╦╝║ ║╚═╗ ║   ║ ╦║  ║ ║╠╩╗╠═╣║  ║ ╚╦╝
+                                            ╩╝╚╝╚═╝╩  ╩╩╚═╩╝╚╝╚═╝   ╩ ╩╚═╚═╝╚═╝ ╩   ╚═╝╩═╝╚═╝╚═╝╩ ╩╩═╝╩═╝╩ 
+*/
+/***** CS que genera el PDF y lo mueve a los attach - FFG 24/11/2020 BEGIN *****/
+
+//**** Declaracion de constantes
+APC = docman.getScriptByNickname("am_correspondencia_config").getCSVars()?.app
+WFSTATUS = workflow.getWorkflowStatus(workID, subWorkID)
+WFATTACHMENT = WFSTATUS.getAttachmentsFolder()
+FORM = forms.getWorkFlowFormDirect(WFSTATUS, "Form")
+
+//**** Declaracion de variables
+app = csvars.app
+def csv = FORM.csv.value
+def conf = sql.runSQLFast(app.querys.conf , false, false, 0).rows.collectEntries{[(it.Sigla):it.DescripcionLarga]}
+
+/******************************************Main Code BEGIN******************************************/
+try{
+
+    //Cargar viewParams
+    precargarDatos(csv, conf)
+
+    //Crear PDF
+    renderizarForm(csv)
+}catch(e){
+    log.error("Error en la renderizacion del PDF", e)
+}
+/******************************************Main Code END******************************************/
+
+/*****************************************Functions BEGIN*****************************************/
+def precargarDatos(codigoSV, configuracion){
+    FORM.viewParams.title = configuracion.get("TRE")
+    FORM.viewParams.mostrarRadicado = "block"
+    FORM.viewParams.mostrarCSV = "block"
+    FORM.viewParams.codseguro = "Código seguro de verificación: ${codigoSV}"
+    FORM.viewParams.radicado = FORM.radicado.value
+    FORM.viewParams.fechaRadicado = FORM.fecharadicado.valueAsDate.format('dd/MM/yyyy hh:mm a')
+    FORM.viewParams.dependencia = FORM.parausuario.value.isEmpty() ? "Techedge" : runCS("${APC.subScripts.userDepend}", "${FORM.parausuario.value}").result[0]?.Nombre
+    FORM.viewParams.destino = FORM.parausuario.value.isEmpty() ? FORM.paranombre.value : users.getUserById(FORM.parausuario.value as long).displayName
+    FORM.viewParams.anexos = FORM.nanexos.value
+    FORM.viewParams.ciudad = runCS("${APC.subScripts.siglatovalue}", "Z_COR_Municipios", "${FORM.ciudad.value}", "Seq", "Ciudad", null ).result
+}
+
+def renderizarForm(codigoSV){
+
+    sourceFile = forms.createRendableForm(FORM, asCSNode(APC.views.radElectronico))
+    sourceFile = rend.htmlToPdf(sourceFile, [:], "-B 31 -T 28 -L 21 -R 14 --viewport-size 1757x1240 \${source} --cookie \${cookie} \${destination}")
+    sourceFile.name ="${FORM.radicado.value}.pdf"
+    //Agregar codigo de barras CSV y Radicado
+    try{
+        res =  pdf.addBarcode(sourceFile.content,"PDF_417", "${codigoSV}", 1, 440, -70, 180, 30)
+        res =  pdf.addBarcode(res.content,"CODE_128", "${FORM.radicado.value}", 1, 13, 60, 180, 30)
+        res.name = sourceFile.name
+
+        //Guardar el PDF en los attachment de WF
+        try{
+            //Crear el PDF en los adjuntos de WF
+            docman.createDocument(WFATTACHMENT, res.name, res.content)
+        }catch(e){
+            //Si el PDF ya existe, agregar una version
+            def doc = docman.getNodeByName(WFATTACHMENT, res.name)
+            doc != null ? docman.addVersion(doc, res.content) : log.error("Error al crear el PDF radicado electrónico ${res.name}: " + e)
+        }
+    }catch(e){
+        log.error("Unable to apply barcodes on PDF document ${sourceFile.name}", e)
+    }
+}
+
+/*****************************************Functions END*****************************************/
+
+/***** CS que genera el PDF y lo mueve a los attach - FFG 24/11/2020 END *****/
+
+
+
+
+
+
+
+
+
+
+
+
+
