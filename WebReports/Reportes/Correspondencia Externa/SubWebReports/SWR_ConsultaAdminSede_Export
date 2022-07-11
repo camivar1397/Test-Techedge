@@ -1,0 +1,105 @@
+[LL_WEBREPORT_FORCEUTF8 /]
+<table border="1">
+    <tr>
+        <th>No.</th>
+        <th>Estado</th>
+        <th>Asunto</th>
+        <th>Radicado</th>
+        <th>Fecha radicado</th>
+        <th>Tipo de comunicación</th>
+        <th>Categoría de asunto</th>
+        <th>Remitente</th>
+        <th>Empresa</th>
+        <th>Correo electrónico</th>
+        <th>Destinatario</th>
+        <th>Dependencia destinatario</th>
+        <th>CECO</th>
+        <th>No. de anexos</th>
+        <th>Medio</th>
+        <th>Tipo de envío</th>
+        <th>Confidencial</th>
+        <th>Radicado(s) de referencia</th>
+        <th>Copiados</th>
+        <th>Dependencia copiados</th>
+        <th>Radicado de contingencia</th>
+    </tr>
+[LL_WEBREPORT_STARTROW /]
+    <tr>
+        <td>[LL_REPTAG_ROWNUM /]</td>
+        
+        [LL_WEBREPORT_IF "[LL_REPTAG='Medio' /]" == "F&iacute;sico" && "[LL_REPTAG='TipoDistribucion' /]" != "Distribuci&oacute;n electr&oacute;nica" /]
+            <td>[LL_REPTAG='Estado' /]</td>
+        [LL_WEBREPORT_ELSE /]
+            <td>
+                <a href="[LL_REPTAG_URLPREFIXFULL /][LL_REPTAG='ID' LLURL:WFDEFAULTLINK /]" target="_BLANK">
+                    <span class="glyphicon glyphicon-pencil"></span> [LL_REPTAG='Estado' /]
+                </a>
+            </td>
+        [LL_WEBREPORT_ENDIF /]
+            
+        <td>[LL_REPTAG='Asunto' /]</td>
+        [LL_WEBREPORT_IF "[LL_REPTAG='IDCarpeta' /]" == "?" /]
+            <td>[LL_REPTAG='Radicado' DECODE:?:' ' /]</td>
+        [LL_WEBREPORT_ELSE /]
+            <td>
+                <a href="[LL_REPTAG_URLPREFIXFULL /][LL_REPTAG='IDCarpeta' LLURL:BROWSE /]" target="_BLANK">
+                    [LL_REPTAG='Radicado' DECODE:?:' ' /]
+                </a>
+            </td>
+        [LL_WEBREPORT_ENDIF /]
+        [LL_WEBREPORT_IF "[LL_REPTAG='FechaRadicado' /]" == "?" /]
+            <td></td>
+        [LL_WEBREPORT_ELSE /]
+            <td>[LL_REPTAG='FechaRadicado' DATE:"%d/%m/%Y %I:%M %p" /]</td>
+        [LL_WEBREPORT_ENDIF /]
+        <td>[LL_REPTAG='TipoComunicacion' DECODE:?:' ' /]</td>
+        <td>[LL_REPTAG='CategoriaAsunto' DECODE:?:' ' /]</td>
+        <td>[LL_REPTAG='DeUsuario' DECODE:?:' ' /]</td>
+        <td>[LL_REPTAG='DeEmpresa' DECODE:?:' ' /]</td>
+        <td>[LL_REPTAG='DeCorreo' DECODE:?:' ' /]</td>
+        <td>[LL_REPTAG='ParaUsuario' USERINFO:FULLNAME:FORCE /]</td>
+        <td>[LL_REPTAG='ParaDependencia' DECODE:?:' ' /]</td>
+        <td>[LL_REPTAG='ParaCECO' DECODE:?:' ' /]</td>
+        <td>[LL_REPTAG='NAnexos' DECODE:?:' ' /]</td>
+        <td>[LL_REPTAG='Medio' DECODE:?:' ' /]</td>
+        <td>[LL_REPTAG='TipoDistribucion' /]</td>
+            
+        [LL_WEBREPORT_IF "[LL_REPTAG='Confidencial' /]" == "?" || "[LL_REPTAG='Confidencial' /]" == "0" /]
+            <td>No</td>
+        [LL_WEBREPORT_ELSE /]
+            <td>Si</td>
+        [LL_WEBREPORT_ENDIF /]
+            
+        <td>
+        [LL_WEBREPORT_FOR DATA:[LL_REPTAG='RefRadicado' TOLIST:',' /] VAR:RadicadoRef /]
+            [LL_REPTAG_$SWR_RadicadoReferencia RUNSWR:radicado:[LL_REPTAG_%RadicadoRef CURRENTVAL /] TRIM SETVAR:IDCarpeta /]
+            [LL_WEBREPORT_IF "[LL_REPTAG_!IDCarpeta /]" == "" /]
+                [LL_REPTAG_%RadicadoRef CURRENTVAL DECODE:?:' ' /]<br>
+            [LL_WEBREPORT_ELSE /]
+                <a href="[LL_REPTAG_URLPREFIXFULL /][LL_REPTAG_!IDCarpeta LLURL:BROWSE /]" target="_BLANK">
+                    [LL_REPTAG_%RadicadoRef CURRENTVAL /]
+                </a><br>
+            [LL_WEBREPORT_ENDIF /]
+        [LL_WEBREPORT_ENDFOR /]
+        </td>
+        <td>
+            [LL_WEBREPORT_IF "[LL_REPTAG='Medio' /]" == "F&iacute;sico" /]
+                [LL_WEBREPORT_FOR DATA:[LL_REPTAG='CopiadosInternos' TOLIST:',' /] VAR:correosCopia /]
+                    [LL_REPTAG_%correosCopia CURRENTVAL DECODE:?:' ' USERINFO:MAILADDRESS /]<br>
+                [LL_WEBREPORT_ENDFOR /]
+            [LL_WEBREPORT_ELSE /]
+                [LL_WEBREPORT_FOR DATA:[LL_REPTAG='CopiadosInternos' TOLIST:',' /] VAR:correosCopia /]
+                    [LL_REPTAG_%correosCopia CURRENTVAL DECODE:?:' ' /]<br>
+                [LL_WEBREPORT_ENDFOR /]
+            [LL_WEBREPORT_ENDIF /]
+        </td>
+        <td>
+            [LL_WEBREPORT_FOR DATA:[LL_REPTAG='CopiadosDependencia' TOLIST:',' /] VAR:depCopia /]
+                [LL_REPTAG_%depCopia CURRENTVAL DECODE:?:' ' /]<br>
+            [LL_WEBREPORT_ENDFOR /]
+        </td>
+        
+        <td>[LL_REPTAG='RadicadoContingencia' DECODE:?:' ' /]</td>
+    </tr>
+[LL_WEBREPORT_ENDROW /]
+</table>
