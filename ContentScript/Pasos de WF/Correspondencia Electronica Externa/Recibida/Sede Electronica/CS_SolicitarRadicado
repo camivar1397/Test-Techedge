@@ -1,0 +1,54 @@
+/*
+████████╗███████╗ ██████╗██╗  ██╗███████╗██████╗  ██████╗ ███████╗    ████████╗███████╗ █████╗ ███╗   ███╗
+╚══██╔══╝██╔════╝██╔════╝██║  ██║██╔════╝██╔══██╗██╔════╝ ██╔════╝    ╚══██╔══╝██╔════╝██╔══██╗████╗ ████║
+   ██║   █████╗  ██║     ███████║█████╗  ██║  ██║██║  ███╗█████╗         ██║   █████╗  ███████║██╔████╔██║
+   ██║   ██╔══╝  ██║     ██╔══██║██╔══╝  ██║  ██║██║   ██║██╔══╝         ██║   ██╔══╝  ██╔══██║██║╚██╔╝██║
+   ██║   ███████╗╚██████╗██║  ██║███████╗██████╔╝╚██████╔╝███████╗       ██║   ███████╗██║  ██║██║ ╚═╝ ██║
+   ╚═╝   ╚══════╝ ╚═════╝╚═╝  ╚═╝╚══════╝╚═════╝  ╚═════╝ ╚══════╝       ╚═╝   ╚══════╝╚═╝  ╚═╝╚═╝     ╚═╝
+                                            ╦╔╗╔╔═╗╔═╗╦╦═╗╦╔╗╔╔═╗  ╔╦╗╦═╗╦ ╦╔═╗╔╦╗  ╔═╗╦  ╔═╗╔╗ ╔═╗╦  ╦ ╦ ╦
+                                            ║║║║╚═╗╠═╝║╠╦╝║║║║║ ╦   ║ ╠╦╝║ ║╚═╗ ║   ║ ╦║  ║ ║╠╩╗╠═╣║  ║ ╚╦╝
+                                            ╩╝╚╝╚═╝╩  ╩╩╚═╩╝╚╝╚═╝   ╩ ╩╚═╚═╝╚═╝ ╩   ╚═╝╩═╝╚═╝╚═╝╩ ╩╩═╝╩═╝╩ 
+*/
+/***** CS para solicitar radicado - LPA 03/04/2020 BEGIN *****/
+import java.text.SimpleDateFormat
+import java.util.Date
+
+//**** Declaracion de constantes
+APC = docman.getScriptByNickname("am_correspondencia_config").getCSVars()?.app
+WFSTATUS = workflow.getWorkflowStatus(workID, subWorkID)
+FORM = forms.getWorkFlowFormDirect(WFSTATUS, "Form")
+
+//**** Declaracion de variables
+int NAnexos = FORM.nanexos.value as int
+def dependencia = FORM.parausuario.value.isEmpty() ? "Ecopetrol S.A." : runCS("${APC.subScripts.userDepend}", "${FORM.parausuario.value}").result[0]?.Nombre 
+def solicitante = FORM.deusuario.value
+def destinatario = FORM.parausuario.value.isEmpty() ? FORM.paranombre.value : users.getUserById(FORM.parausuario.value as long).displayName
+
+/******************************************Main Code BEGIN******************************************/
+try{
+
+    //Solicitar radicado
+    solicitarRadicado(NAnexos, dependencia, solicitante, destinatario)
+    
+}catch(e){
+    log.error("Error al solicitar radicado", e)
+}
+/******************************************Main Code END******************************************/
+
+/*****************************************Functions BEGIN*****************************************/
+
+//Solicitar radicado
+def solicitarRadicado(nAnexos, dep, solicitante, dest){
+    //Solicitar radicado
+    result = runCS("${APC.subScripts.generarradicado}", "Radicacion externa", "1", "ELE", "OT", "${solicitante}", "${dep}", "${dest}", "${nAnexos}", "${0}")
+
+    //Actualizar form
+    FORM.radicado.value = result.Radicado
+    Date fecharadicado = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS").parse("${result.Fecha}")
+    FORM.fecharadicado.value = fecharadicado
+    FORM.estado.value = "Radicado"
+    forms.updateWorkFlowFormDirect(WFSTATUS,"Form", FORM) 
+}
+/*****************************************Functions END*****************************************/
+
+/***** CS para solicitar radicado - LPA 03/04/2020 END *****/
