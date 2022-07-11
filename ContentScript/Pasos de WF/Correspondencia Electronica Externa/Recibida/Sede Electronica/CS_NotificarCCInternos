@@ -1,0 +1,92 @@
+/*
+████████╗███████╗ ██████╗██╗  ██╗███████╗██████╗  ██████╗ ███████╗    ████████╗███████╗ █████╗ ███╗   ███╗
+╚══██╔══╝██╔════╝██╔════╝██║  ██║██╔════╝██╔══██╗██╔════╝ ██╔════╝    ╚══██╔══╝██╔════╝██╔══██╗████╗ ████║
+   ██║   █████╗  ██║     ███████║█████╗  ██║  ██║██║  ███╗█████╗         ██║   █████╗  ███████║██╔████╔██║
+   ██║   ██╔══╝  ██║     ██╔══██║██╔══╝  ██║  ██║██║   ██║██╔══╝         ██║   ██╔══╝  ██╔══██║██║╚██╔╝██║
+   ██║   ███████╗╚██████╗██║  ██║███████╗██████╔╝╚██████╔╝███████╗       ██║   ███████╗██║  ██║██║ ╚═╝ ██║
+   ╚═╝   ╚══════╝ ╚═════╝╚═╝  ╚═╝╚══════╝╚═════╝  ╚═════╝ ╚══════╝       ╚═╝   ╚══════╝╚═╝  ╚═╝╚═╝     ╚═╝
+                                            ╦╔╗╔╔═╗╔═╗╦╦═╗╦╔╗╔╔═╗  ╔╦╗╦═╗╦ ╦╔═╗╔╦╗  ╔═╗╦  ╔═╗╔╗ ╔═╗╦  ╦ ╦ ╦
+                                            ║║║║╚═╗╠═╝║╠╦╝║║║║║ ╦   ║ ╠╦╝║ ║╚═╗ ║   ║ ╦║  ║ ║╠╩╗╠═╣║  ║ ╚╦╝
+                                            ╩╝╚╝╚═╝╩  ╩╩╚═╩╝╚╝╚═╝   ╩ ╩╚═╚═╝╚═╝ ╩   ╚═╝╩═╝╚═╝╚═╝╩ ╩╩═╝╩═╝╩ 
+*/
+/***** CS para enviar notificación a los copíados internos de la radicación electrónica - LPA 27/04/2020 *****/
+
+//**** Declaracion de constantes
+APC = docman.getScriptByNickname("am_correspondencia_config").getCSVars()?.app
+WFSTATUS = workflow.getWorkflowStatus(workID, subWorkID)
+WFATTACHMENT = WFSTATUS.getAttachmentsFolder()
+WFATTRIBUTES = WFSTATUS.getAttributes()
+WFATTCCINT = WFATTRIBUTES.data.CopiaInt
+FORM = forms.getWorkFlowFormDirect(WFSTATUS, "Form")
+
+//**** Declaracion de variables
+class EmailProperties{
+    String email
+    String asunto
+    }
+def newCorreo = new EmailProperties()
+def RadicElect = docman.getNodeByName(WFATTACHMENT, "${FORM.radicado.value}.pdf")
+
+//Cuerpo del correo
+
+//Asunto y Cuerpo del correo
+newCorreo.asunto = "Copia radicación externa No. ${FORM.radicado.value}"
+newCorreo.email= "<tr>"
+newCorreo.email+="<td align='justify'>${FORM.asunto.value}</td>"
+newCorreo.email+="<td align='center'>${FORM.radicado.value}</td>"
+newCorreo.email+="<td align='center'>${FORM.fecharadicado.valueAsDate.format('dd/MM/yyyy hh:mm:ss a')}</td>"
+def tipoCom = runCS("${APC.subScripts.siglatovalue}", "Parametros", "${FORM.tipocomunicacion.value}", null, null, "TIPC" ).result
+newCorreo.email+="<td align='center'>${tipoCom ? tipoCom : ""}</td>"
+newCorreo.email+="<td align='center'>${FORM.deusuario.value}</td>"
+newCorreo.email+="<td align='center'>${FORM.nanexos.value}</td>"
+newCorreo.email+="</tr>"
+newCorreo.email+="<br>"
+//Asunto y Cuerpo del correo
+emailTemplate = docman.getNode(APC.constants.correoSedeElectronica)
+
+/******************************************Main Code BEGIN******************************************/
+try{
+
+    //Enviar el correo de notificación
+    enviarCorreo(newCorreo, emailTemplate, RadicElect)
+    
+}catch(e){
+    log.error("Error en el envio de la notificacion", e)
+}
+/******************************************Main Code END******************************************/
+
+/*****************************************Functions BEGIN*****************************************/
+
+def enviarCorreo(cuerpoCorreo, templateEmail, radicElect){
+    //Evaluar template
+    def emailContext = ['asunto':"<h1>${cuerpoCorreo.asunto}</h1>", 'body': cuerpoCorreo.email]
+    def mailbody = template.evaluateTemplate(templateEmail, emailContext)
+    correo = mail.create(mailbody)
+
+    //lista de Copiados del atributo de WF
+    for(int i=0; i<WFATTCCINT.size(); i++){
+        if(WFATTCCINT[i] != null){
+            correo.to(WFATTCCINT[i])
+        }
+    }
+
+    //Adjuntos en el correo
+    correo.attach(radicElect, "${radicElect.name}")
+
+    //Enviar Correo
+    correo.from("correspondenciatechedgecol@gmail.com")
+    correo.subject(cuerpoCorreo.asunto)
+    mail.send(correo, "correspondencia")
+    
+    //Actualizar estado
+    FORM.estado.value = "Destinatario"
+    forms.updateWorkFlowFormDirect(WFSTATUS, "Form", FORM)
+}
+
+/*****************************************Functions END*****************************************/
+
+/***** CS para enviar notificación a los copíados internos de la radicación electrónica - LPA 27/04/2020 END *****/
+
+
+
+
