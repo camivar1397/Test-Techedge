@@ -1,0 +1,68 @@
+/*
+████████╗███████╗ ██████╗██╗  ██╗███████╗██████╗  ██████╗ ███████╗    ████████╗███████╗ █████╗ ███╗   ███╗
+╚══██╔══╝██╔════╝██╔════╝██║  ██║██╔════╝██╔══██╗██╔════╝ ██╔════╝    ╚══██╔══╝██╔════╝██╔══██╗████╗ ████║
+   ██║   █████╗  ██║     ███████║█████╗  ██║  ██║██║  ███╗█████╗         ██║   █████╗  ███████║██╔████╔██║
+   ██║   ██╔══╝  ██║     ██╔══██║██╔══╝  ██║  ██║██║   ██║██╔══╝         ██║   ██╔══╝  ██╔══██║██║╚██╔╝██║
+   ██║   ███████╗╚██████╗██║  ██║███████╗██████╔╝╚██████╔╝███████╗       ██║   ███████╗██║  ██║██║ ╚═╝ ██║
+   ╚═╝   ╚══════╝ ╚═════╝╚═╝  ╚═╝╚══════╝╚═════╝  ╚═════╝ ╚══════╝       ╚═╝   ╚══════╝╚═╝  ╚═╝╚═╝     ╚═╝
+                                            ╦╔╗╔╔═╗╔═╗╦╦═╗╦╔╗╔╔═╗  ╔╦╗╦═╗╦ ╦╔═╗╔╦╗  ╔═╗╦  ╔═╗╔╗ ╔═╗╦  ╦ ╦ ╦
+                                            ║║║║╚═╗╠═╝║╠╦╝║║║║║ ╦   ║ ╠╦╝║ ║╚═╗ ║   ║ ╦║  ║ ║╠╩╗╠═╣║  ║ ╚╦╝
+                                            ╩╝╚╝╚═╝╩  ╩╩╚═╩╝╚╝╚═╝   ╩ ╩╚═╚═╝╚═╝ ╩   ╚═╝╩═╝╚═╝╚═╝╩ ╩╩═╝╩═╝╩ 
+*/
+/***** CS que genera la tabla de recorridos en la vista print - DGC 25/06/2020 BEGIN *****/
+
+//**** Declaracion de constantes
+APC = docman.getScriptByNickname("am_correspondencia_config").getCSVars()?.app
+
+//**** Declaracion de variables
+def size
+
+/******************************************Main Code BEGIN******************************************/
+try{
+    size = form.radicados.size()
+    render(size)
+}catch(e){
+    log.error("Error en el CS PrintCourrier", e)
+}
+/******************************************Main Code END******************************************/
+
+/*****************************************Functions BEGIN*****************************************/
+
+def render(size){
+    def writer = new StringWriter()
+    def htmlDoc = new MarkupBuilder(writer)
+	htmlDoc.table(class:"table table-bordered table-condensed", style:"font-size:12px") {
+    	tr{
+            th{ span "Radicado" }
+            th{ span "Destinatario" }
+            th{ span "Registro" }
+            th{ span "Código postal" }
+            th{ span "Ciudad" }
+            th{ span "Departamento" }
+            th{ span "Dirección" }
+            th{ span "Edificio" }
+            th{ span "Teléfono" }
+            th{ span "Tipo de mensajeria" }
+            th{ span "Número de guia" }
+        }
+		for(int i=0; i<size; i++){
+            tr{
+                td{ span ""+form.radicados[i].radicado.value }
+                td{ span ""+form.radicados[i].destinatario.value}
+                td{ span ""+form.radicados[i].registro.value }
+                td{ span ""+form.radicados[i].codigopostal.value }
+                td{ span ""+runCS("${APC.subScripts.siglatovalue}", "Z_COR_Municipios", "${form.radicados[i].ciudad.value}", "Seq", "Ciudad", "").result}
+                td{ span ""+form.radicados[i].departamento.value }
+                td{ span ""+form.radicados[i].direccion.value }
+                td{ span ""+form.radicados[i].edificio.value }
+                td{ span ""+form.radicados[i].telefono.value }
+                td{ span ""+runCS("${APC.subScripts.siglatovalue}", "Parametros", "${form.radicados[i].tipo.value}", "", "", "TIPMJ").result}
+                td{ span ""+form.radicados[i].guia.value }
+            }
+        }
+	}
+    htmlInputs = writer.toString()
+}
+/*****************************************Functions END*****************************************/
+
+/***** CS que genera la tabla de recorridos en la vista print - DGC 25/06/2020 END *****/
