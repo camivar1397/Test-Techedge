@@ -1,0 +1,7 @@
+[LL_WEBREPORT_EXCLUDEHTML /]
+
+<SELECT class="form-control select2" type="text" name="medio" id="medio">
+    <OPTION VALUE="" >-</OPTION>
+    <OPTION VALUE="[LL_REPTAG_'F&iacute;sico' ESCAPEFORJS:ENCODEURI /]">Físico</OPTION>
+    <OPTION VALUE="[LL_REPTAG_'Electr&oacute;nico' ESCAPEFORJS:ENCODEURI /]">Electrónico</OPTION>
+</SELECT>
