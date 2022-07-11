@@ -1,0 +1,125 @@
+/*
+████████╗███████╗ ██████╗██╗  ██╗███████╗██████╗  ██████╗ ███████╗    ████████╗███████╗ █████╗ ███╗   ███╗
+╚══██╔══╝██╔════╝██╔════╝██║  ██║██╔════╝██╔══██╗██╔════╝ ██╔════╝    ╚══██╔══╝██╔════╝██╔══██╗████╗ ████║
+   ██║   █████╗  ██║     ███████║█████╗  ██║  ██║██║  ███╗█████╗         ██║   █████╗  ███████║██╔████╔██║
+   ██║   ██╔══╝  ██║     ██╔══██║██╔══╝  ██║  ██║██║   ██║██╔══╝         ██║   ██╔══╝  ██╔══██║██║╚██╔╝██║
+   ██║   ███████╗╚██████╗██║  ██║███████╗██████╔╝╚██████╔╝███████╗       ██║   ███████╗██║  ██║██║ ╚═╝ ██║
+   ╚═╝   ╚══════╝ ╚═════╝╚═╝  ╚═╝╚══════╝╚═════╝  ╚═════╝ ╚══════╝       ╚═╝   ╚══════╝╚═╝  ╚═╝╚═╝     ╚═╝
+                                            ╦╔╗╔╔═╗╔═╗╦╦═╗╦╔╗╔╔═╗  ╔╦╗╦═╗╦ ╦╔═╗╔╦╗  ╔═╗╦  ╔═╗╔╗ ╔═╗╦  ╦ ╦ ╦
+                                            ║║║║╚═╗╠═╝║╠╦╝║║║║║ ╦   ║ ╠╦╝║ ║╚═╗ ║   ║ ╦║  ║ ║╠╩╗╠═╣║  ║ ╚╦╝
+                                            ╩╝╚╝╚═╝╩  ╩╩╚═╩╝╚╝╚═╝   ╩ ╩╚═╚═╝╚═╝ ╩   ╚═╝╩═╝╚═╝╚═╝╩ ╩╩═╝╩═╝╩ 
+*/
+/***** CS que reasigna al grupo gestor en paso destinatario cuando la tarea no se cumpla - DGC 05/10/2020 BEGIN *****/
+
+//***** Declaracion de constantes
+apc = docman.getScriptByNickname("am_correspondencia_config").getCSVars()?.app
+Calendar cal = Calendar.getInstance()
+cal.setTime(new Date())
+fechaNow = cal.getTime().format('yyyy-MM-dd').toString()
+cal.add(Calendar.HOUR_OF_DAY, 5)
+fecha = cal.getTime().format('MMM dd yyyy hh:mm a').toString()
+
+//***** Declaracion de variables
+wfVenc = []
+wfVencReal = []
+
+/*************************************************** Main Code ***************************************************/
+try{  
+    //Consultar los WF y subWF que tienen la tarea Destinatario vencida
+    consultaWFVenc()
+
+    //Consultar los WF y subWF que tienen la tarea Destinatario vencida
+    consultaWFVencReal()
+
+    //Reasignar usuarios
+    reasignarUsuarios()
+    
+}catch(e){
+    log.error("Error en la reasignacion grupo gestor ${self.ID}", e)
+}
+/*************************************************** Main Code ***************************************************/
+
+/*************************************************** Funciones ***************************************************/
+
+//Funcion para consultar los WF y subWF que tienen tarea destinatario en estado vencido
+def consultaWFVenc(){  
+    
+    //Consultar para traer los WF con tareas vencidas
+    def query =  """SELECT WST.SubWorkTask_WorkID AS WorkID, WST.SubWorkTask_SubWorkID AS SubWorkID, 
+                    WST.SubWorkTask_TaskID AS TaskID, WST.SubWorkTask_PerformerID AS PerformerID,
+                    CONVERT(varchar,WST.SubWorkTask_DateReady,23) AS FechaAsignacion,
+                    CONVERT(varchar,WST.SubWorkTask_DateDue_Max,23) AS FechaVencimiento
+                    FROM WSubWorkTask WST
+                    INNER JOIN KUAF KU ON WST.SubWorkTask_PerformerID = KU.ID AND KU.Type = 0 AND KU.Deleted = 0
+                    WHERE WST.SubWorkTask_WorkID IN (SELECT WorkID FROM Z_COR_RadicacionFisica WHERE Estado = 'Destinatario' AND RowseqNum = 1)
+                    AND WST.SubWorkTask_Status IN (2,3,5)
+                    AND WST.SubWorkTask_Title = 'Aceptar comunicación'
+                    AND CONVERT(DATETIME,'${fecha}',100) > CONVERT(DATETIME,WST.SubWorkTask_DateDue_Max,100)
+                 """
+    
+    def result = sql.runSQLFast(query, false, false, 0).rows
+    
+    //Iterar los resultados y llenarlos en el map wfVenc
+    result.each{it->
+            
+        wfVenc << ['WorkID': it.WorkID, 'subWorkID': it.SubWorkID,
+                   'TaskID': it.TaskID, 'PerformerID':it.PerformerID,
+                   'FechaAsignacion': it.FechaAsignacion,
+                   'FechaVencimiento': it.FechaVencimiento
+                  ]
+    }
+}
+
+//Funcion para quitar WF que tengan festivos
+def consultaWFVencReal(){
+    
+    //Iterar sobre los WF vencidos
+    wfVenc.each{it->
+        def diffdays = runCS("${apc.subScripts.holydays}", "${it.FechaAsignacion}", "${fechaNow}").result as int
+        if(diffdays >= 3){
+            wfVencReal << it
+        }
+    }
+}
+
+//Funcion para reasignar PerformerID en las tareas vencidas
+def reasignarUsuarios(){
+
+    //Iterar los WF vencidos reales
+    wfVencReal.each{it->
+        
+        //Inicializar instancias de WF y variables
+        def user
+        def wfstatus = workflow.getWorkflowStatus(it.WorkID as long)
+        def wfattr = wfstatus.attributes
+        def wftask = workflow.getWorkFlowTask(it.WorkID as long, it.subWorkID as long, it.TaskID as int)
+        
+        //Validar si la tarea la tiene un usuario o un grupo
+        try{
+            user = users.getUserById(it.PerformerID as long)
+            
+        }catch(e){
+            log.error("El ID ${it.PerformerID} no es de un usuario")
+        }
+        
+        //Si el usuario existe, buscar la dependencia
+        if(user){
+           def result = runCS("${apc.subScripts.userDepend}", "${user.ID}").result
+           def groupDepGID = users.getGroupByName("${users.getGroupById(result.get(0).Grupo as long).displayName}_Gestores")
+               
+           //Si existe grupo gestor dependencia
+           if(groupDepGID){
+               
+                //Reasignar el paso
+                wftask.reassign(groupDepGID)
+               
+                //Actualizar el atributo de WF
+                wfattr.data.Destinatario = groupDepGID.ID
+                wfstatus.updateData()
+            }
+        }
+    }
+}
+/*************************************************** Funciones ***************************************************/
+
+/***** CS que reasigna al grupo gestor en paso destinatario cuando la tarea no se cumpla - DGC 05/10/2020 END *****/
