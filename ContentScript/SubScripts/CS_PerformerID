@@ -1,0 +1,46 @@
+/*
+████████╗███████╗ ██████╗██╗  ██╗███████╗██████╗  ██████╗ ███████╗    ████████╗███████╗ █████╗ ███╗   ███╗
+╚══██╔══╝██╔════╝██╔════╝██║  ██║██╔════╝██╔══██╗██╔════╝ ██╔════╝    ╚══██╔══╝██╔════╝██╔══██╗████╗ ████║
+   ██║   █████╗  ██║     ███████║█████╗  ██║  ██║██║  ███╗█████╗         ██║   █████╗  ███████║██╔████╔██║
+   ██║   ██╔══╝  ██║     ██╔══██║██╔══╝  ██║  ██║██║   ██║██╔══╝         ██║   ██╔══╝  ██╔══██║██║╚██╔╝██║
+   ██║   ███████╗╚██████╗██║  ██║███████╗██████╔╝╚██████╔╝███████╗       ██║   ███████╗██║  ██║██║ ╚═╝ ██║
+   ╚═╝   ╚══════╝ ╚═════╝╚═╝  ╚═╝╚══════╝╚═════╝  ╚═════╝ ╚══════╝       ╚═╝   ╚══════╝╚═╝  ╚═╝╚═╝     ╚═╝
+                                            ╦╔╗╔╔═╗╔═╗╦╦═╗╦╔╗╔╔═╗  ╔╦╗╦═╗╦ ╦╔═╗╔╦╗  ╔═╗╦  ╔═╗╔╗ ╔═╗╦  ╦ ╦ ╦
+                                            ║║║║╚═╗╠═╝║╠╦╝║║║║║ ╦   ║ ╠╦╝║ ║╚═╗ ║   ║ ╦║  ║ ║╠╩╗╠═╣║  ║ ╚╦╝
+                                            ╩╝╚╝╚═╝╩  ╩╩╚═╩╝╚╝╚═╝   ╩ ╩╚═╚═╝╚═╝ ╩   ╚═╝╩═╝╚═╝╚═╝╩ ╩╩═╝╩═╝╩ 
+*/
+/***** CS para obtener los performerID de los subWorkFlow - LPA 06/02/2020 BEGIN *****/
+def workID = args[0]  
+def result = [:]
+ 
+try{
+    buscarPerformerID(workID,result)  
+}catch(e){
+    result.msgdesc = "Error: " + e
+	result.msgcode = "false"
+}
+return result
+
+//función para retornar el PerformerID de los SWF
+def buscarPerformerID(WorkID, result){
+    //Query obtener subWorFlows
+    def queryW = """SELECT TOP(1) SubWork_SubWorkID  
+                    FROM WSubWork
+                    WHERE SubWork_WorkID=${WorkID}
+                    ORDER BY SubWork_DateCompleted DESC
+                 """
+    def resultQuery1 = sql.runSQLFast(queryW, false, false, 1).rows
+    //Query obtener PerformerID de los SWF
+    def queryWT = """SELECT SubWorkTask_PerformerID
+                     FROM WSubWorkTask
+                     WHERE SubWorkTask_SubWorkID=${resultQuery1.get(0).get('SubWork_SubWorkID')}  
+                     AND SubWorkTask_Title='Aceptar comunicación'
+                     AND SubWorkTask_DateDone IS NOT NULL                 
+                  """
+    def resultQuery2 = sql.runSQLFast(queryWT, false, false, 1).rows
+    
+    result.msgdesc = "PerformerID Obtenido"
+    result.msgcode = "true"
+    result.result = resultQuery2
+}
+/***** CS para obtener los performerID de los subWorkFlow - LPA 06/02/2020 END *****/
