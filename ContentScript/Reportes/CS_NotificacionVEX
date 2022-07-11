@@ -1,0 +1,344 @@
+/*
+████████╗███████╗ ██████╗██╗  ██╗███████╗██████╗  ██████╗ ███████╗    ████████╗███████╗ █████╗ ███╗   ███╗
+╚══██╔══╝██╔════╝██╔════╝██║  ██║██╔════╝██╔══██╗██╔════╝ ██╔════╝    ╚══██╔══╝██╔════╝██╔══██╗████╗ ████║
+   ██║   █████╗  ██║     ███████║█████╗  ██║  ██║██║  ███╗█████╗         ██║   █████╗  ███████║██╔████╔██║
+   ██║   ██╔══╝  ██║     ██╔══██║██╔══╝  ██║  ██║██║   ██║██╔══╝         ██║   ██╔══╝  ██╔══██║██║╚██╔╝██║
+   ██║   ███████╗╚██████╗██║  ██║███████╗██████╔╝╚██████╔╝███████╗       ██║   ███████╗██║  ██║██║ ╚═╝ ██║
+   ╚═╝   ╚══════╝ ╚═════╝╚═╝  ╚═╝╚══════╝╚═════╝  ╚═════╝ ╚══════╝       ╚═╝   ╚══════╝╚═╝  ╚═╝╚═╝     ╚═╝
+                                            ╦╔╗╔╔═╗╔═╗╦╦═╗╦╔╗╔╔═╗  ╔╦╗╦═╗╦ ╦╔═╗╔╦╗  ╔═╗╦  ╔═╗╔╗ ╔═╗╦  ╦ ╦ ╦
+                                            ║║║║╚═╗╠═╝║╠╦╝║║║║║ ╦   ║ ╠╦╝║ ║╚═╗ ║   ║ ╦║  ║ ║╠╩╗╠═╣║  ║ ╚╦╝
+                                            ╩╝╚╝╚═╝╩  ╩╩╚═╩╝╚╝╚═╝   ╩ ╩╚═╚═╝╚═╝ ╩   ╚═╝╩═╝╚═╝╚═╝╩ ╩╩═╝╩═╝╩ 
+*/
+/***** CS para notificación VEX - DGC 19/05/2020 BEGIN *****/
+
+//**** Declaracion de constantes
+APP = csvars.app
+APC = docman.getScriptByNickname("am_correspondencia_config").getCSVars()?.app
+CONF = sql.runSQLFast(APP.querys.conf , false, false, 0).rows.collectEntries{[(it.Sigla):it.DescripcionLarga]}
+ASUNTO = "${CONF.get('Asunto')}"
+RADICADOS = "RADICADOS"
+DATE = new Date()
+
+//**** Declaracion de variables
+def result = sql.runSQL(APP.querys.getvex, false, false, 0).rows
+dia = DATE.format("EEE")
+hora = DATE.format("HH") as int
+
+//crea un libro con sus pestanas
+String[] secciones = [RADICADOS]
+ARCHIVOEXCEL = xlsx.createSpreadsheet(secciones)
+
+/******************************************Main Code BEGIN******************************************/
+try{
+    
+    //Evaluar el dia de ejecucion y la hora
+    if((dia != "Sat") && (dia != "Sun")){
+        if((hora >= 8) && (hora <= 18)){
+    
+            //Escribir Titulos
+            escribirTitulos()
+
+            //Obtener comunicaciones
+            setComunicaciones(result)
+    
+            //Enviar correo
+            enviarCorreo()
+        }
+    }
+    
+}catch(e){
+    log.error("Error en el envio de la notificacion", e)
+}
+/******************************************Main Code END******************************************/
+
+//Escribir Titulos
+def escribirTitulos(){
+    //Escribe los titulos de cada pestaña en el excel
+    List<Object> TVALORES = ["N°","Estado","Asunto","Radicado","Fecha Radicación",
+                             "Tipo de Comunicación","Categoría del Asunto", "Remitente", "Dependencia Remitente", "Empresa", 
+                             "Identificación", "Correo", "Destinatario", "Dependencia Destinatario",
+                             "Copiados", "Dependencia Copiados","Radicado(s) de referencia", "N. Anexos", "Confidencial", "Medio"] 
+    
+    ARCHIVOEXCEL.getWorksheetByName(RADICADOS).writeRow(TVALORES,0)
+}
+
+//Obtener comunicaciones
+def setComunicaciones(result){
+    
+    //Iterar los resultados
+    result.each{ row ->
+        List<Object> Encabezado = new ArrayList<Object>() 
+        int size = ARCHIVOEXCEL.getWorksheetByName(RADICADOS).readRows().size()+1
+        /*url que se pasa en el archivo excel para la carpeta del radicado BEGIN */
+        String url= '=HYPERLINK("'+"https://co-explorationlab.r53.techedgegroup.com/OTCS/llisapi.dll/Open/"
+        url+=row.IDCarpeta
+        url+='","'
+        url+=row.Radicado
+        url+='")'
+        /*url que se pasa en el archivo excel para la carpeta del radicado END */
+        Encabezado.add((size-1))
+        Encabezado.add(row.Estado)
+        Encabezado.add(row.Asunto)
+        
+        if(row.Medio == "Electronico" && row.Estado != "Finalizado") {
+            Encabezado.add(row.Radicado)
+        } else {
+            Encabezado.add(url)
+        }
+        
+        Encabezado.add(row.FechaRadicado)
+        Encabezado.add(row.TipoComunicacion == "" ? "" : runCS("${APC.subScripts.siglatovalue}", "Parametros", "${row.TipoComunicacion}", "", "", "TIPC").result)
+        Encabezado.add(row.CategoriaAsunto  == "" ? "" : runCS("${APC.subScripts.siglatovalue}", "Parametros", "${row.CategoriaAsunto}", "", "", "EXC").result)
+        
+        if(row.Medio == "Fisico" && row.Origen == "REXT") {
+            Encabezado.add(row.DeUsuarioRext)
+            Encabezado.add("N/A")
+        } else {
+            Encabezado.add(row.DeUsuario)
+            Encabezado.add(row.DeDependencia)
+        }
+        
+        if(row.Medio == "Electronico" ){
+            Encabezado.add(row.DeEmpresa)
+        }else if(row.Medio == "Fisico"){
+            if(row.Origen == "INT"){
+                Encabezado.add("N/A")
+            }else if (row.Origen == "EXT"){
+                Encabezado.add("N/A")
+            }else if (row.Origen == "REXT") {
+                Encabezado.add(row.DeEmpresaRext == "" ? "" : runCS("${APC.subScripts.siglatovalue}", "Z_COR_Empresas", "${row.DeEmpresaRext}", "NIT", "Nombre", null).result)
+            }
+        }
+        
+        if(row.Medio == "Fisico" && row.Origen == "REXT") {
+            Encabezado.add(row.DeIdentificacionRext)
+            Encabezado.add(row.DeCorreoRext)
+        } else {
+            Encabezado.add(row.DeIdentificacion)
+            Encabezado.add(row.DeCorreo)
+        }
+                
+        
+        if(row.Medio == "Electronico" ){
+            Encabezado.add(row.ParaNombre)
+        }else if(row.Medio == "Fisico"){
+            if(row.Origen == "INT" || row.Origen == "REXT"){
+                Encabezado.add(row.ParaNombre)
+            }else if (row.Origen == "EXT"){
+                Encabezado.add(row.ParaNombreExt)
+            }
+        }
+        
+        if(row.Medio == "Electronico" ){
+            Encabezado.add(getdep(row.ID))
+        }else if(row.Medio == "Fisico"){
+            if(row.Origen == "INT" || row.Origen == "REXT"){
+                Encabezado.add(row.ParaDependencia)
+            }else if (row.Origen == "EXT"){
+                Encabezado.add(row.DeEmpresa == "" ? "" : runCS("${APC.subScripts.siglatovalue}", "Z_COR_Empresas", "${row.DeEmpresa}", "NIT", "Nombre", null).result)
+            }
+        }
+        
+        Encabezado.add(row.Medio == "Electronico" ? getcc(row.ID) : getccfis(row.ID))
+        Encabezado.add(row.Medio == "Electronico" ? getccdep(row.ID) : getdepfis(row.ID))
+        Encabezado.add(row.Medio == "Electronico" ? "-" : getradref(row.ID))
+        Encabezado.add(row.NAnexos)
+        Encabezado.add(row.Confidencial == 0 ? "No" : "Si")
+        Encabezado.add(row.Medio)
+        ARCHIVOEXCEL.getWorksheetByName(RADICADOS).writeRow(Encabezado, size)
+    }
+}
+
+def enviarCorreo(){
+    
+    //Evaluar template
+    def correo = mail.create(CONF.get("Mensaje"))
+    
+    //Destinatarios del correo
+    CONF.Lista.toString().split(";").each{email->
+        correo.to(email)
+    }
+    
+    //Archivo Excel
+    File reporteVEX = new File("ReporteVEX_${new Date().format('ddMMyyyyHHmmss')}.xlsx")
+    ARCHIVOEXCEL.updateFormulas().save(reporteVEX)
+
+    //Enviar Correo
+    correo.subject(ASUNTO)
+    correo.attach(reporteVEX)
+    correo.from("correspondenciatechedgecol@gmail.com")
+    mail.send(correo, "correspondencia")
+    
+    //Borrar archivo
+    reporteVEX.delete()
+}
+
+/*****************************************Functions END*****************************************/
+
+/*****************************************Utils BEGIN*****************************************/
+
+def getdep(workID){
+    
+    //Parametros del WF
+    def wfstatus = workflow.getWorkflowStatus(workID as long)
+    def wfattributes = wfstatus.attributes
+    def wfattrdep = wfattributes.data.Dependencia
+    
+    return wfattrdep
+}
+
+//Obtener usuarios en copia
+def getcc(workID){
+    
+    //Lista de copiados
+    def listCC = ""
+    
+    //Parametros del WF
+    def wfstatus = workflow.getWorkflowStatus(workID as long)
+    def wfattributes = wfstatus.attributes
+    def wfattrccext = wfattributes.data.CopiaExt
+    def wfattrccint = wfattributes.data.CopiaInt
+    
+    //Agregar a la lista cc externos
+    for(int i=0; i<wfattrccext.size(); i++){
+        if(wfattrccext[i] != null){
+             listCC+= "${wfattrccext[i]}\n"                  
+        }else{
+            listCC+= "-\n"    
+        }
+    }
+    
+    //Agregar a la lista cc internos
+    for(int i=0; i<wfattrccint.size(); i++){
+        if(wfattrccint[i] != null){
+             listCC+= "${wfattrccint[i]}\n"               
+        }else{
+            listCC+= "-\n"    
+        }
+    }
+    
+    return listCC
+}
+
+//Obtener dependencias usuarios en copia
+def getccdep(workID){
+    
+    //Lista de Dependencias
+    def listDep = ""
+    
+    //Parametros del WF
+    def wfstatus = workflow.getWorkflowStatus(workID as long)
+    def wfattributes = wfstatus.attributes
+    def wfattrdepext = wfattributes.data.DependenciaCCExt
+    def wfattrdepint = wfattributes.data.DependenciaCCInt   
+    
+    //Agregar a la lista dep externos
+    for(int i=0; i<wfattrdepext.size(); i++){
+        if(wfattrdepext[i] != null){
+             listDep+= "${wfattrdepext[i]}\n"               
+        }else{
+            listDep+= "-\n"    
+        }
+    }
+
+    //Agregar a la lista dep internos
+    for(int i=0; i<wfattrdepint.size(); i++){
+        if(wfattrdepint[i] != null){
+             listDep+= "${wfattrdepint[i]}\n"               
+        }else{
+            listDep+= "-\n"    
+        }
+    }
+    
+    return listDep
+}
+
+//Obtener usuarios en copia fisico
+def getccfis(Seq){
+    
+    //Lista de copiados
+    def listCC = ""
+    
+    //Consulta
+    def query = """SELECT Nombre
+                   FROM Z_COR_RadicacionFisicaCCInt
+                   WHERE Seq = ${Seq}
+                """
+    
+    def result = sql.runSQLFast(query, false, false, 0).rows
+    
+    //Validar si tiene resultados
+    if(result.size()>0){
+        for(int i = 0; i<result.size(); i++){
+            if(result[i].Nombre){
+                listCC+= "${users.getUserById(result[i].Nombre as long).email}\n"
+            }else{
+                listCC+= "-\n"
+            }
+        }
+    }
+    
+    return listCC
+}
+
+//Obtener dependencia en copia fisico
+def getdepfis(Seq){
+    
+    //Lista de copiados
+    def listDep = ""
+    
+    //Consulta
+    def query = """SELECT Dependencia
+                   FROM Z_COR_RadicacionFisicaCCInt
+                   WHERE Seq = ${Seq}
+                """
+    
+    def result = sql.runSQLFast(query, false, false, 0).rows
+    
+    //Validar si tiene resultados
+    if(result.size()>0){
+        for(int i = 0; i<result.size(); i++){
+            if(result[i].Dependencia){
+                listDep+= "${result[i].Dependencia}\n"
+            }else{
+                listDep+= "-\n"
+            }
+        }
+    }
+    
+    return listDep
+}
+
+//Obtener dependencia en copia fisico
+def getradref(Seq){
+    
+    //Lista de copiados
+    def listRadRef = ""
+    
+    //Consulta
+    def query = """ SELECT RefRadicado
+                    FROM Z_COR_RadicacionFisica
+                    WHERE Seq = ${Seq}
+                """
+    
+    def result = sql.runSQLFast(query, false, false, 0).rows
+    
+    //Validar si tiene resultados
+    if(result.size()>0){
+        for(int i = 0; i<result.size(); i++){
+            if(result[i].RefRadicado){
+                listRadRef+= "${result[i].RefRadicado}\n"
+            }else{
+                listRadRef+= "-\n"
+            }
+        }
+    }
+    
+    return listRadRef
+}
+
+/*****************************************Utils END*****************************************/
+
+/***** CS para notificación VEX - DGC 19/05/2020 END *****/
+
+
