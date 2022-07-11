@@ -1,0 +1,61 @@
+/*
+████████╗███████╗ ██████╗██╗  ██╗███████╗██████╗  ██████╗ ███████╗    ████████╗███████╗ █████╗ ███╗   ███╗
+╚══██╔══╝██╔════╝██╔════╝██║  ██║██╔════╝██╔══██╗██╔════╝ ██╔════╝    ╚══██╔══╝██╔════╝██╔══██╗████╗ ████║
+   ██║   █████╗  ██║     ███████║█████╗  ██║  ██║██║  ███╗█████╗         ██║   █████╗  ███████║██╔████╔██║
+   ██║   ██╔══╝  ██║     ██╔══██║██╔══╝  ██║  ██║██║   ██║██╔══╝         ██║   ██╔══╝  ██╔══██║██║╚██╔╝██║
+   ██║   ███████╗╚██████╗██║  ██║███████╗██████╔╝╚██████╔╝███████╗       ██║   ███████╗██║  ██║██║ ╚═╝ ██║
+   ╚═╝   ╚══════╝ ╚═════╝╚═╝  ╚═╝╚══════╝╚═════╝  ╚═════╝ ╚══════╝       ╚═╝   ╚══════╝╚═╝  ╚═╝╚═╝     ╚═╝
+                                            ╦╔╗╔╔═╗╔═╗╦╦═╗╦╔╗╔╔═╗  ╔╦╗╦═╗╦ ╦╔═╗╔╦╗  ╔═╗╦  ╔═╗╔╗ ╔═╗╦  ╦ ╦ ╦
+                                            ║║║║╚═╗╠═╝║╠╦╝║║║║║ ╦   ║ ╠╦╝║ ║╚═╗ ║   ║ ╦║  ║ ║╠╩╗╠═╣║  ║ ╚╦╝
+                                            ╩╝╚╝╚═╝╩  ╩╩╚═╩╝╚╝╚═╝   ╩ ╩╚═╚═╝╚═╝ ╩   ╚═╝╩═╝╚═╝╚═╝╩ ╩╩═╝╩═╝╩ 
+*/
+
+/***** CS para detener y archivar WF de Correspondencia - LPA 27/01/2020 BEGIN*****/
+
+//Obtener instancias de WF y Formularios
+def WFStatus = workflow.getWorkflowStatus(workID, subWorkID)
+def form = forms.getWorkFlowFormDirect(WFStatus, "Form")
+def WFRadicado = workflow.getWorkflowStatus(form.workid.value as long)
+
+try{
+    if(WFRadicado){
+        //si es un WF cambiamos de estado traendo la instancia
+        def formMem = forms.getWorkFlowFormDirect(WFRadicado, "Form")
+        //Cambiar el estado de WF del Formulario
+        formMem.estado.value = "Anulado"
+        forms.updateWorkFlowFormDirect(WFRadicado, "Form", formMem)
+
+        //Detener y Archivar el WF
+        switch(WFRadicado.status){
+            case "Stopped": 
+            WFRadicado.archive()
+            break
+
+            case "Completed":
+            WFRadicado.archive()
+            break
+
+            case "Archived" :
+            break
+
+            default: 
+                WFRadicado.stop()
+                WFRadicado.archive()
+            break
+        }
+    }else{
+        //si no es un workflow lo consultamos el la tabla de lo físico
+        def sp =    """EXEC Z_SP_COR_ActualizarEstado @Seq = '${form.workid.value}',
+                       @Radicado = '${form.radicado.value}',
+                       @Estado = 'Anulado', @Destinatario = '0',
+                       @Cargo = '', @Dependencia = '', @CECO = '',
+                       @Registro = '', @Usuario = '${form.usuariomodificacion.value}', 
+                       @Delegado = '0', @DelDependencia = '',
+                       @CGC = ''
+                    """
+        def run = sql.runSQLFast(sp , false, false, 0).rows
+    }
+}catch(e){
+    log.error("Error en modificar el WF en anulacion", e)    
+}
+/***** CS para detener y archivar WF de Correspondencia - LPA 27/01/2020 END*****/
