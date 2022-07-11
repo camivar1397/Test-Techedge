@@ -1,0 +1,113 @@
+[LL_WEBREPORT_IF "[LL_REPTAG_&conHTML /]" == "0" /]
+[LL_WEBREPORT_EXCLUDEHTML /]
+[LL_WEBREPORT_ENDIF /]
+
+
+[LL_WEBREPORT_TITLE TITLE1:"Parámetros:" TITLE2:" Dependencias" /]
+<link rel="stylesheet" href="/img/appearances/Ecopetrol/libs/css/jquery.dataTables.min.css">
+<link rel="stylesheet" href="/img/appearances/Ecopetrol/libs/css/responsive.dataTables.min.css">
+<link rel="stylesheet" href="/img/appearances/Ecopetrol/libs/reports/Reportes.css">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Exo+2:100,100i,400,400i,700,700i&amp;display=swap">
+
+<table id="myTable" class="table display" style="width:100%">
+    <thead>
+        <tr>
+            <th>Acción</th>
+            <th>Tarea</th>
+            <th>Radicado</th>
+            <th>Fecha</th>
+            <th>Iniciador</th>
+            <th>Asunto</th>
+        </tr>
+    </thead>
+    <tbody>
+        [LL_WEBREPORT_STARTROW /]
+        <tr>
+            [LL_WEBREPORT_IF "[LL_REPTAG='TitleTask' /]" == "Enviar memorando a firma" /]
+                <td style="width:5%">
+                   <a href="/OTCS/cs.exe/app/processes/[LL_REPTAG='WorkID' /]/[LL_REPTAG='SubWorkID' /]/[LL_REPTAG='TaskID' /]?reload_classic_ui=true&origin_index=2&nexturl=[LL_REPTAG_MYURL ESCAPEURL /]">
+                        <span class="glyphicon glyphicon-pencil"></span> Ir a la tarea
+                    </a> 
+                </td>
+            [LL_WEBREPORT_ELSEIF "[LL_REPTAG='TitleTask' /]" == "Aceptar comunicación" /]
+                <td style="width:5%">
+                   <a href="/OTCS/cs.exe/app/processes/[LL_REPTAG='WorkID' /]/[LL_REPTAG='SubWorkID' /]/[LL_REPTAG='TaskID' /]?reload_classic_ui=true&origin_index=2&nexturl=[LL_REPTAG_MYURL ESCAPEURL /]">
+                        <span class="glyphicon glyphicon-pencil"></span> Ir a la tarea
+                    </a> 
+                </td>
+            [LL_WEBREPORT_ELSEIF "[LL_REPTAG='TitleTask' /]" == "Reasignar destinatarios" /]
+                <td style="width:5%">
+                   <a href="/OTCS/cs.exe/app/processes/[LL_REPTAG='WorkID' /]/[LL_REPTAG='SubWorkID' /]/[LL_REPTAG='TaskID' /]?reload_classic_ui=true&origin_index=2&nexturl=[LL_REPTAG_MYURL ESCAPEURL /]">
+                        <span class="glyphicon glyphicon-pencil"></span> Ir a la tarea
+                    </a> 
+                </td>
+            [LL_WEBREPORT_ELSEIF "[LL_REPTAG='TitleTask' /]" == "Enviar carta a firma" /]
+                <td style="width:5%">
+                   <a href="/OTCS/cs.exe/app/processes/[LL_REPTAG='WorkID' /]/[LL_REPTAG='SubWorkID' /]/[LL_REPTAG='TaskID' /]?reload_classic_ui=true&origin_index=2&nexturl=[LL_REPTAG_MYURL ESCAPEURL /]">
+                        <span class="glyphicon glyphicon-pencil"></span> Ir a la tarea
+                    </a> 
+                </td>
+            [LL_WEBREPORT_ELSEIF "[LL_REPTAG='TitleTask' /]" == "Editar destinatario" /]
+                <td style="width:5%">
+                   <a href="/OTCS/cs.exe/app/processes/[LL_REPTAG='WorkID' /]/[LL_REPTAG='SubWorkID' /]/[LL_REPTAG='TaskID' /]?reload_classic_ui=true&origin_index=2&nexturl=[LL_REPTAG_MYURL ESCAPEURL /]">
+                        <span class="glyphicon glyphicon-pencil"></span> Ir a la tarea
+                    </a> 
+                </td>
+            [LL_WEBREPORT_ELSEIF "[LL_REPTAG='TitleTask' /]" == "Confirmar digitalización" /]
+                <td style="width:5%">
+                   <a href="/OTCS/cs.exe/app/processes/[LL_REPTAG='WorkID' /]/[LL_REPTAG='SubWorkID' /]/[LL_REPTAG='TaskID' /]?reload_classic_ui=true&origin_index=2&nexturl=[LL_REPTAG_MYURL ESCAPEURL /]">
+                        <span class="glyphicon glyphicon-pencil"></span> Ir a la tarea
+                    </a> 
+                </td>
+            [LL_WEBREPORT_ELSEIF "[LL_REPTAG='TitleTask' /]" == "Reasignar destinatario" /]
+                <td style="width:5%">
+                   <a href="/OTCS/cs.exe/app/processes/[LL_REPTAG='WorkID' /]/[LL_REPTAG='SubWorkID' /]/[LL_REPTAG='TaskID' /]?reload_classic_ui=true&origin_index=2&nexturl=[LL_REPTAG_MYURL ESCAPEURL /]">
+                        <span class="glyphicon glyphicon-pencil"></span> Ir a la tarea
+                    </a> 
+                </td>
+            [LL_WEBREPORT_ELSE /]
+                 <td style="width:5%">
+                    <a href="?func=work.EditTask&workid=[LL_REPTAG='WorkID' /]&SubWorkID=[LL_REPTAG='SubWorkID' /]&TaskID=[LL_REPTAG='TaskID' /]&paneindex=0&nexturl=[LL_REPTAG_MYURL ESCAPEURL /]">
+                        <span class="glyphicon glyphicon-pencil"></span> Ir a la tarea
+                    </a>
+                </td>
+            [LL_WEBREPORT_ENDIF /]
+            <td style="width:13%">
+            [/*    
+            [LL_WEBREPORT_IF "[LL_REPTAG='TitleTask' /]" == "Enviar memorando a firma" /]
+                Send memo to Signature
+            [LL_WEBREPORT_ELSEIF "[LL_REPTAG='TitleTask' /]" == "Aceptar comunicación" /]
+                Accept the communication
+            [LL_WEBREPORT_ELSEIF "[LL_REPTAG='TitleTask' /]" == "Consultar comunicación" /]
+                Accept the communication
+            [LL_WEBREPORT_ELSEIF "[LL_REPTAG='TitleTask' /]" == "Reasignar destinatarios" /]
+                Reassign recipients
+            [LL_WEBREPORT_ELSEIF "[LL_REPTAG='TitleTask' /]" == "Enviar carta a firma" /]
+                Send letter to Signature
+            [LL_WEBREPORT_ELSEIF "[LL_REPTAG='TitleTask' /]" == "Editar destinatario" /]
+                Edit recipient
+            [LL_WEBREPORT_ELSEIF "[LL_REPTAG='TitleTask' /]" == "Confirmar digitalización" /]
+                Confirm scaning
+            [LL_WEBREPORT_ELSEIF "[LL_REPTAG='TitleTask' /]" == "Reasignar destinatario" /]
+                Reassign recipient
+            [LL_WEBREPORT_ELSE /]
+                [LL_REPTAG='TitleTask' /]
+            [LL_WEBREPORT_ENDIF /]
+            */]
+            [LL_REPTAG='TitleTask' /]
+            </td>
+            <td style="width:12%">[LL_REPTAG='Radicado' /]</td>
+            <td style="width:10%">[LL_REPTAG='FechaRadicado' /]</td>
+            <td style="width:20%">[LL_REPTAG='Iniciador' USERINFO:FULLNAME:FORCE /]</td>
+            <td style="width:40%">[LL_REPTAG='Asunto' /]</td>
+        </tr>
+        [LL_WEBREPORT_ENDROW /]
+    </tbody>
+    <tfoot>
+    </tfoot>
+</table>
+<script src="/img/core/jquery.min.js"></script>
+<script src="/img/appearances/Ecopetrol/libs/js/jquery.dataTables.min.js"></script>
+<script src="/img/appearances/Ecopetrol/libs/js/bootstrap.min.js"></script>
+<script src="/img/appearances/Ecopetrol/libs/js/dataTables.responsive.min.js"></script>
+<script src="/img/appearances/Ecopetrol/libs/reports/Reportes.js"></script>
