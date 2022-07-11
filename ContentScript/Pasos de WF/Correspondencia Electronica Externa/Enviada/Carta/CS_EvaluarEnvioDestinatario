@@ -1,0 +1,91 @@
+/*
+████████╗███████╗ ██████╗██╗  ██╗███████╗██████╗  ██████╗ ███████╗    ████████╗███████╗ █████╗ ███╗   ███╗
+╚══██╔══╝██╔════╝██╔════╝██║  ██║██╔════╝██╔══██╗██╔════╝ ██╔════╝    ╚══██╔══╝██╔════╝██╔══██╗████╗ ████║
+   ██║   █████╗  ██║     ███████║█████╗  ██║  ██║██║  ███╗█████╗         ██║   █████╗  ███████║██╔████╔██║
+   ██║   ██╔══╝  ██║     ██╔══██║██╔══╝  ██║  ██║██║   ██║██╔══╝         ██║   ██╔══╝  ██╔══██║██║╚██╔╝██║
+   ██║   ███████╗╚██████╗██║  ██║███████╗██████╔╝╚██████╔╝███████╗       ██║   ███████╗██║  ██║██║ ╚═╝ ██║
+   ╚═╝   ╚══════╝ ╚═════╝╚═╝  ╚═╝╚══════╝╚═════╝  ╚═════╝ ╚══════╝       ╚═╝   ╚══════╝╚═╝  ╚═╝╚═╝     ╚═╝
+                                            ╦╔╗╔╔═╗╔═╗╦╦═╗╦╔╗╔╔═╗  ╔╦╗╦═╗╦ ╦╔═╗╔╦╗  ╔═╗╦  ╔═╗╔╗ ╔═╗╦  ╦ ╦ ╦
+                                            ║║║║╚═╗╠═╝║╠╦╝║║║║║ ╦   ║ ╠╦╝║ ║╚═╗ ║   ║ ╦║  ║ ║╠╩╗╠═╣║  ║ ╚╦╝
+                                            ╩╝╚╝╚═╝╩  ╩╩╚═╩╝╚╝╚═╝   ╩ ╩╚═╚═╝╚═╝ ╩   ╚═╝╩═╝╚═╝╚═╝╩ ╩╩═╝╩═╝╩ 
+*/
+/***** Evaluar el envio de la carta al Destinatario - DGC 19/02/2020 BEGIN *****/
+import java.util.concurrent.TimeUnit
+
+//Cargar instancia de WF y Formulario
+def wfstatus = workflow.getWorkflowStatus(workID, subWorkID)
+def wfattributes = wfstatus.getAttributes()
+def form = forms.getWorkFlowFormDirect(wfstatus, "Form")
+
+//Cargar APP de este CS
+app = csvars.app
+
+//Ejecutar query campos Conf
+def conf = sql.runSQLFast(app.querys.conf , false, false, 0).rows.collectEntries{[(it.Sigla):it.DescripcionLarga]}
+
+//Obtengo el atributo de fecha de inicio de espera
+int tiempodeespera = (conf.get('TMP') as int)
+def fechaInicioEspera = wfattributes.data."FechaInicioEspera"
+
+boolean rebote = false
+boolean enEspera = true
+
+if(fechaInicioEspera.value){
+    if(fechaInicioEspera.value < tiempodeespera.seconds.ago){
+        enEspera = false
+
+//Leer la bandeja de correo
+def correo = mail.fetchMessages("${conf.get('FREB')}", "${conf.get('NREB')}" as int, false, false, "correspondencia")
+
+//Separar los remitentes de rebote
+String[] from = conf.get('RREB').split(";")
+
+//Recorrer los correos
+for(int i=0; i<correo.size(); i++){
+    //Recorrer los remitentes
+    for(int j=0; j<from.size(); j++){
+        //Evaluar remitente de correo
+        if(correo.get(i).getFrom() == "${from[j]}"){
+            //Evaluar el asunto del correo
+            if(correo.get(i).getSubject() == "${conf.get('CREB')}" || correo.get(i).getSubject().contains("${form.radicado.value}")){
+                //Evaluar en el cuerpo de correo que exista el correo destinatario
+                if(correo.get(i).plainContent.contains("${form.paracorreo.value}")){
+                    //Comentario del rebote
+                    String msj = "Error en el envío de correo al destinatario ${form.paracorreo.value} "
+                    msj += correo.get(i).plainContent
+            
+                    //Poner el error en el atributo de WF
+                    wfattributes.data."FechaInicioEspera" = null
+                    wfattributes.data."ErrorEntrega" = msj
+                    wfstatus.updateData()
+                    rebote = true
+                    break
+                }
+            }
+        }   
+    }     
+}
+}
+} else {
+    wfattributes.data."FechaInicioEspera" = new Date()
+    wfstatus.updateData()
+}
+
+//Evaluar valor a retornar en la tarea de WF
+if(!enEspera){
+    if(rebote){
+        //Actualizar estado en el formulario
+        form.estado.value = "Edición Destinatario"
+        forms.updateWorkFlowFormDirect(wfstatus, "Form", form)
+        return "Error"
+    }else{
+        return "Success"
+    }
+} else {
+    return "Waiting"
+}
+
+/***** Evaluar el envio de la carta al Destinatario - DGC 19/02/2020 END *****/
+
+
+
