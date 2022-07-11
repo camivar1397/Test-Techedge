@@ -1,0 +1,155 @@
+/*
+████████╗███████╗ ██████╗██╗  ██╗███████╗██████╗  ██████╗ ███████╗    ████████╗███████╗ █████╗ ███╗   ███╗
+╚══██╔══╝██╔════╝██╔════╝██║  ██║██╔════╝██╔══██╗██╔════╝ ██╔════╝    ╚══██╔══╝██╔════╝██╔══██╗████╗ ████║
+   ██║   █████╗  ██║     ███████║█████╗  ██║  ██║██║  ███╗█████╗         ██║   █████╗  ███████║██╔████╔██║
+   ██║   ██╔══╝  ██║     ██╔══██║██╔══╝  ██║  ██║██║   ██║██╔══╝         ██║   ██╔══╝  ██╔══██║██║╚██╔╝██║
+   ██║   ███████╗╚██████╗██║  ██║███████╗██████╔╝╚██████╔╝███████╗       ██║   ███████╗██║  ██║██║ ╚═╝ ██║
+   ╚═╝   ╚══════╝ ╚═════╝╚═╝  ╚═╝╚══════╝╚═════╝  ╚═════╝ ╚══════╝       ╚═╝   ╚══════╝╚═╝  ╚═╝╚═╝     ╚═╝
+                                            ╦╔╗╔╔═╗╔═╗╦╦═╗╦╔╗╔╔═╗  ╔╦╗╦═╗╦ ╦╔═╗╔╦╗  ╔═╗╦  ╔═╗╔╗ ╔═╗╦  ╦ ╦ ╦
+                                            ║║║║╚═╗╠═╝║╠╦╝║║║║║ ╦   ║ ╠╦╝║ ║╚═╗ ║   ║ ╦║  ║ ║╠╩╗╠═╣║  ║ ╚╦╝
+                                            ╩╝╚╝╚═╝╩  ╩╩╚═╩╝╚╝╚═╝   ╩ ╩╚═╚═╝╚═╝ ╩   ╚═╝╩═╝╚═╝╚═╝╩ ╩╩═╝╩═╝╩ 
+*/
+/***** CS para descargar los archivos adjuntos de SharePoint en la carpeta Anexos del WF - DGC 23/04/2020 BEGIN *****/
+
+//variables con los parametros de entrada
+def itemID = args[0]
+def folderID = args[1]
+
+//variables con parametros de salida
+def result = [:]
+
+//Declaracion constantes
+app = csvars.app
+CONF = sql.runSQLFast(app.querys.conf, false, false, 0).rows.collectEntries{[(it.Sigla):it.DescripcionLarga]}
+
+/***************************************Registro EndPoints BEGIN***************************************/
+
+//Servicio para la obtención del token
+def tokenclient = csws.registerRESTClient("token", CONF.get('TokenURL').replace("@TenantId@","${CONF.get('TenantID')}"))
+tokenclient.setDefaultContentTypeHeader("application/x-www-form-urlencoded")
+
+//EndPoint principal Microsoft Graph
+def msgraphclient = csws.registerRESTClient("msgraph", "https://graph.microsoft.com/v1.0/")
+msgraphclient.defaultAcceptHeader = "application/json"
+
+/***************************************Registro EndPoints END***************************************/
+
+/***************************************Main Code BEGIN***************************************/
+try{
+    //Obtener token
+    def token = getToken()
+    
+    if(token){
+        //Obtener item
+        def item = getItem(token,itemID)
+        
+        //Validar respuesta
+        if(item){
+            //Evaluar que es un archivo
+            if(item.file){
+                def download = downloadItem(item,folderID)
+                
+                if(download){
+                    result.msgdesc = "Proceso completo"
+                    result.msgcode = true 
+                    return result
+                }else{
+                     result.msgdesc = "Error al obtener archivo"
+                     result.msgcode = false 
+                     return result
+                }
+            }else{
+                result.msgdesc = "No se encontro objeto file"
+                result.msgcode = false 
+                return result
+            }
+        }else{
+            result.msgdesc = "No se encontro item"
+            result.msgcode = false 
+            return result
+        }
+    }else{
+        result.msgdesc = "Error en la obtencion del token"
+        result.msgcode = false 
+        return result
+    }
+}catch(e){
+    log.error("Error en la obtencion del archivo", e)
+    result.msgdesc = "Error general + ${e}"
+    result.msgcode = false 
+    return result
+}
+/***************************************Main Code END***************************************/
+
+/*************************************Funciones BEGIN*************************************/
+
+//Funcion para obtener token
+def getToken(){ 
+    try{
+        def response = csws.getRegisteredRESTClient("token").post(){
+            urlenc client_id:"${CONF.get('ClientID')}",scope:"https://graph.microsoft.com/.default",client_secret:"${CONF.get('ClientSecret')}",grant_type:'client_credentials'
+        }
+    
+        if(response.getStatusCode() == 200){
+            return getJson(response.getContentAsString()).access_token
+        }else{
+            return null
+        }
+    }catch(e){
+        return null
+    }
+}
+
+//Funcion para obtener item en SharePoint
+def getItem(token,itemID){ 
+    try{
+        def response = csws.getRegisteredRESTClient("msgraph").get(path:"/sites/${CONF.get('SiteID')}/drive/items/${itemID}", 
+                                                                   headers:["Authorization":"Bearer ${token}"])
+        if(response.getStatusCode() == 200){
+            return getJson(response.getContentAsString())
+        }else{
+            return null
+        }
+    }catch(e){
+        return null
+    }
+}
+
+//Funcion para obtener child con el radicado
+def downloadItem(item,folderID){ 
+    
+    def client = csws.registerRESTClient("download", "${item.'@microsoft.graph.downloadUrl'}")
+    try{
+        def response = csws.getRegisteredRESTClient("download").get()
+        
+        if(response.getStatusCode() == 200){
+            byte[] bFile = response.getData()
+            File file = new File("${item.name}")
+            try{
+                OutputStream os = new FileOutputStream(file)
+                os.write(bFile)
+                os.close()
+                docman.createDocument(asCSNode(folderID as long), "${item.name}", file)
+            }catch(e){
+                return false
+            }
+            return true
+        }else{
+            return false
+        }
+    }catch(e){
+        return false
+    }
+}
+/*************************************Funciones END*************************************/
+
+/*************************************Utils BEGIN*************************************/
+
+def getJson(text){
+    def jsonSlurper = new JsonSlurper()
+    def JSON = jsonSlurper.parseText(text)
+    return JSON
+}
+/*************************************Utils END*************************************/
+
+/***** CS para descargar los archivos adjuntos de SharePoint en la carpeta Anexos del WF - DGC 23/04/2020 END *****/
