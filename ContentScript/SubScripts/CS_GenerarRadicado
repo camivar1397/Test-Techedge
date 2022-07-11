@@ -1,0 +1,95 @@
+/*
+████████╗███████╗ ██████╗██╗  ██╗███████╗██████╗  ██████╗ ███████╗    ████████╗███████╗ █████╗ ███╗   ███╗
+╚══██╔══╝██╔════╝██╔════╝██║  ██║██╔════╝██╔══██╗██╔════╝ ██╔════╝    ╚══██╔══╝██╔════╝██╔══██╗████╗ ████║
+   ██║   █████╗  ██║     ███████║█████╗  ██║  ██║██║  ███╗█████╗         ██║   █████╗  ███████║██╔████╔██║
+   ██║   ██╔══╝  ██║     ██╔══██║██╔══╝  ██║  ██║██║   ██║██╔══╝         ██║   ██╔══╝  ██╔══██║██║╚██╔╝██║
+   ██║   ███████╗╚██████╗██║  ██║███████╗██████╔╝╚██████╔╝███████╗       ██║   ███████╗██║  ██║██║ ╚═╝ ██║
+   ╚═╝   ╚══════╝ ╚═════╝╚═╝  ╚═╝╚══════╝╚═════╝  ╚═════╝ ╚══════╝       ╚═╝   ╚══════╝╚═╝  ╚═╝╚═╝     ╚═╝
+                                            ╦╔╗╔╔═╗╔═╗╦╦═╗╦╔╗╔╔═╗  ╔╦╗╦═╗╦ ╦╔═╗╔╦╗  ╔═╗╦  ╔═╗╔╗ ╔═╗╦  ╦ ╦ ╦
+                                            ║║║║╚═╗╠═╝║╠╦╝║║║║║ ╦   ║ ╠╦╝║ ║╚═╗ ║   ║ ╦║  ║ ║╠╩╗╠═╣║  ║ ╚╦╝
+                                            ╩╝╚╝╚═╝╩  ╩╩╚═╩╝╚╝╚═╝   ╩ ╩╚═╚═╝╚═╝ ╩   ╚═╝╩═╝╚═╝╚═╝╩ ╩╩═╝╩═╝╩ 
+*/
+
+/***** Subscript para Generar el radicado de correspondencia - DGC 10/01/2020 BEGIN *****/
+
+/************************************ Main Code ************************************/
+
+//variables con los parametros de entrada
+def fuente = args[0]
+def tipo  = args[1]
+def cgc = args[2]
+def sistema = args[3]
+def usuario = args[4]
+def dependencia = args[5]
+def destinatario = args[6]
+def anexos = args[7]
+def folios = args[8]
+
+//Quitar comillas simples del nombre de usuario
+usuario = usuario.replaceAll("'", " ");
+
+try{
+    def result = [:]   
+    if(fuente.isEmpty() || tipo.isEmpty() || cgc.isEmpty() || sistema.isEmpty() || usuario.isEmpty()){
+        result << ["Estado" : "Error", "Consecutivo" : "", "Radicado" : "" , "Fecha" : ""]
+        return result
+	    log.error("Error en generación de radicado en Subscript, parámetros incompletos")   
+    }else{
+        result = generarRadicado(fuente, tipo, cgc, sistema, usuario, dependencia, destinatario, anexos, folios)
+        return result
+    }
+}catch(e) {
+    def result = [:] 
+    result << ["Estado" : "Error", "Consecutivo" : "", "Radicado" : "" , "Fecha" : ""]
+    return result
+	log.error("Error en generación de radicado en Subscript", e)
+}
+/************************************ Main Code ************************************/
+
+def generarRadicado(String fuente, String tipo, String cgc, String sistema, String usuario, String dependencia, String destinatario, String anexos, String folios){
+    
+    def result = [:]
+    
+    def fecha = new Date().format('yyyy-MM-dd HH:mm:ss.SSS').toString()
+    
+    def spins = """EXEC Z_SP_COR_GenerarRadicado @Fuente ='${fuente}', @Tipo = '${tipo}', @CGC ='${cgc}', 
+                                             @Sistema = '${sistema}', @Usuario = '${usuario}', @Dependencia = '${dependencia}', 
+                                             @Destinatario = '${destinatario}', @Anexos = '${anexos}',
+                                             @Folios = '${folios}', @Fecha = '${fecha}'
+                """
+    
+    def qurad = """SELECT Tipo, Fecha, CGC, Sistema, Radicado
+                   FROM Z_FN_COR_ObtenerRadicado('${fecha}','${usuario}')
+                """
+    
+    sql.runSQL(spins, false, false, 0)
+    
+    def qures = sql.runSQLFast(qurad, false, false, 0).rows
+    def consecutivo = qures?.get(0)?.get('Radicado')
+    
+    if(consecutivo){
+        def qtipo = qures?.get(0)?.get('Tipo')
+        def qFecha = qures?.get(0)?.get('Fecha')
+        def qCGC = qures?.get(0)?.get('CGC')
+        def qSistema = qures?.get(0)?.get('Sistema')
+        def qConsecutivo = leftPad("${consecutivo}", 7, "0")
+        def radicado = "${qtipo}-${qFecha.format('yyyy')}-${qCGC}-${qSistema}${qConsecutivo}"
+        result << ["Estado" : "OK", "Consecutivo" : "${consecutivo}", "Radicado" : "${radicado}", "Fecha" : "${fecha}"]
+        return result
+    }else{
+        result << ["Estado" : "Error", "Consecutivo" : "", "Radicado" : "" , "Fecha" : ""]
+    }
+}
+
+def leftPad(String numero, int longitud, String caracter){
+    if(numero.length() >= longitud){
+        return numero
+    }else{
+        while(numero.length() < longitud){
+            numero = "${caracter}${numero}"
+        }
+        return numero
+    }
+}
+
+/***** Subscript para Generar el radicado de correspondencia - DGC 10/01/2020 BEGIN *****/
