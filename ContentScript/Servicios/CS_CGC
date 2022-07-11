@@ -1,0 +1,77 @@
+/*
+████████╗███████╗ ██████╗██╗  ██╗███████╗██████╗  ██████╗ ███████╗    ████████╗███████╗ █████╗ ███╗   ███╗
+╚══██╔══╝██╔════╝██╔════╝██║  ██║██╔════╝██╔══██╗██╔════╝ ██╔════╝    ╚══██╔══╝██╔════╝██╔══██╗████╗ ████║
+   ██║   █████╗  ██║     ███████║█████╗  ██║  ██║██║  ███╗█████╗         ██║   █████╗  ███████║██╔████╔██║
+   ██║   ██╔══╝  ██║     ██╔══██║██╔══╝  ██║  ██║██║   ██║██╔══╝         ██║   ██╔══╝  ██╔══██║██║╚██╔╝██║
+   ██║   ███████╗╚██████╗██║  ██║███████╗██████╔╝╚██████╔╝███████╗       ██║   ███████╗██║  ██║██║ ╚═╝ ██║
+   ╚═╝   ╚══════╝ ╚═════╝╚═╝  ╚═╝╚══════╝╚═════╝  ╚═════╝ ╚══════╝       ╚═╝   ╚══════╝╚═╝  ╚═╝╚═╝     ╚═╝
+                                            ╦╔╗╔╔═╗╔═╗╦╦═╗╦╔╗╔╔═╗  ╔╦╗╦═╗╦ ╦╔═╗╔╦╗  ╔═╗╦  ╔═╗╔╗ ╔═╗╦  ╦ ╦ ╦
+                                            ║║║║╚═╗╠═╝║╠╦╝║║║║║ ╦   ║ ╠╦╝║ ║╚═╗ ║   ║ ╦║  ║ ║╠╩╗╠═╣║  ║ ╚╦╝
+                                            ╩╝╚╝╚═╝╩  ╩╩╚═╩╝╚╝╚═╝   ╩ ╩╚═╚═╝╚═╝ ╩   ╚═╝╩═╝╚═╝╚═╝╩ ╩╩═╝╩═╝╩ 
+*/
+/***** Busca todos los CGC de correspondencia - LPA 10/01/2020 BEGIN *****/
+
+/*
+	Utility function to find an entry by ID in the database.
+*/
+def getByID(String id) {    
+    def sqlCode = """SELECT CodigoCGC, Nombre 
+                     FROM Z_COR_CGC
+                     WHERE CodigoCGC = ${id}
+                     ORDER BY Orden
+                  """
+    Boolean cursorEnabled = false 
+    Boolean transactionEnabled = false
+    Integer recordLimit = 1
+    def result = sql.runSQLFast(sqlCode,  cursorEnabled,  transactionEnabled,  recordLimit).rows.collect{
+          [ id:it.CodigoCGC, text:it.Nombre, desc:"", image:"${img}empty.gif" ]
+    }
+    
+    if(result){    
+        return result[0]
+    }
+    else{
+        return []
+    }
+}
+
+/*
+	Utility function to find entries in the database.
+*/
+def getAll(String searchTerm) {
+    String cond1 = ""
+    if(searchTerm){
+        cond1 = "WHERE (UPPER(Nombre) LIKE UPPER('%${searchTerm}%'))"
+    }
+    
+    def sqlCode = """SELECT CodigoCGC, Nombre 
+                     FROM Z_COR_CGC
+                     ${cond1}
+                     ORDER BY Orden
+                  """
+    
+    Boolean cursorEnabled = false 
+    Boolean transactionEnabled = false
+    Integer recordLimit = 1
+    def result = sql.runSQLFast(sqlCode,  cursorEnabled,  transactionEnabled,  recordLimit).rows.collect{
+        [ id:it.CodigoCGC, text:it.Nombre , desc:"", image:"${img}empty.gif" ]}
+    return result
+}
+
+/*
+	Main code
+*/
+try{
+        
+    if(params.id){
+    	result = getByID(params.id)
+    } else {
+        result = getAll(params.term)
+    }
+    //return result
+    json(result)
+
+} catch(e) {
+	log.error("Error en Busqueda de CGC en REST service.", e)
+}
+/***** Busca todos los CGC de correspondencia - LPA 10/01/2020 END *****/
