@@ -1,0 +1,11 @@
+[LL_WEBREPORT_EXCLUDEHTML /]
+
+<SELECT class="form-control select2" type="text" name="origen" id="origen" onchange="setFilters()" >
+     <OPTION VALUE="" >Seleccione el origen de la comunicación...</OPTION>
+     <OPTION VALUE="[LL_REPTAG_$WR_Externa /]" data-otype="externa" >Enviadas</OPTION>
+     <OPTION VALUE="[LL_REPTAG_$WR_Interna /]" data-otype="interna" >Internas</OPTION>
+     <OPTION VALUE="[LL_REPTAG_$WR_Sede /]" data-otype="sede" >Recibidas</OPTION>
+</SELECT>
+[LL_WEBREPORT_STARTROW /]
+    
+[LL_WEBREPORT_ENDROW /]
