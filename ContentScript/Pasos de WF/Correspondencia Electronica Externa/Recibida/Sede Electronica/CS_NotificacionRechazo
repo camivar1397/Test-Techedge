@@ -1,0 +1,83 @@
+/*
+████████╗███████╗ ██████╗██╗  ██╗███████╗██████╗  ██████╗ ███████╗    ████████╗███████╗ █████╗ ███╗   ███╗
+╚══██╔══╝██╔════╝██╔════╝██║  ██║██╔════╝██╔══██╗██╔════╝ ██╔════╝    ╚══██╔══╝██╔════╝██╔══██╗████╗ ████║
+   ██║   █████╗  ██║     ███████║█████╗  ██║  ██║██║  ███╗█████╗         ██║   █████╗  ███████║██╔████╔██║
+   ██║   ██╔══╝  ██║     ██╔══██║██╔══╝  ██║  ██║██║   ██║██╔══╝         ██║   ██╔══╝  ██╔══██║██║╚██╔╝██║
+   ██║   ███████╗╚██████╗██║  ██║███████╗██████╔╝╚██████╔╝███████╗       ██║   ███████╗██║  ██║██║ ╚═╝ ██║
+   ╚═╝   ╚══════╝ ╚═════╝╚═╝  ╚═╝╚══════╝╚═════╝  ╚═════╝ ╚══════╝       ╚═╝   ╚══════╝╚═╝  ╚═╝╚═╝     ╚═╝
+                                            ╦╔╗╔╔═╗╔═╗╦╦═╗╦╔╗╔╔═╗  ╔╦╗╦═╗╦ ╦╔═╗╔╦╗  ╔═╗╦  ╔═╗╔╗ ╔═╗╦  ╦ ╦ ╦
+                                            ║║║║╚═╗╠═╝║╠╦╝║║║║║ ╦   ║ ╠╦╝║ ║╚═╗ ║   ║ ╦║  ║ ║╠╩╗╠═╣║  ║ ╚╦╝
+                                            ╩╝╚╝╚═╝╩  ╩╩╚═╩╝╚╝╚═╝   ╩ ╩╚═╚═╝╚═╝ ╩   ╚═╝╩═╝╚═╝╚═╝╩ ╩╩═╝╩═╝╩ 
+*/
+/***** CS para enviar notificación de rechazo al remitente de la radicación electrónica - LPA 13/04/2020 BEGIN *****/
+
+//**** Declaracion de constantes
+APC = docman.getScriptByNickname("am_correspondencia_config").getCSVars()?.app
+WFSTATUS = workflow.getWorkflowStatus(workID, subWorkID)
+WFATTACHMENT = WFSTATUS.getAttachmentsFolder()
+FORM = forms.getWorkFlowFormDirect(WFSTATUS, "Form")
+
+//**** Declaracion de variables
+class EmailProperties{
+    String email
+    String cuerpo
+    String info
+    String titulo
+    String asunto
+    }
+def newCorreo = new EmailProperties()
+
+//Cuerpo del correo
+newCorreo.email= "<tr>"
+newCorreo.email+="<td align='justify'>${FORM.asunto.value}</td>"
+newCorreo.email+="<td align='center'>${FORM.radicado.value}</td>"
+newCorreo.email+="<td align='center'>${FORM.fecharadicado.valueAsDate.format('dd/MM/yyyy hh:mm:ss a')}</td>"
+def tipoCom = runCS("${APC.subScripts.siglatovalue}", "Parametros", "${FORM.tipocomunicacion.value}", null, null, "TIPC" ).result
+newCorreo.email+="<td align='center'>${tipoCom ? tipoCom : ""}</td>"
+newCorreo.email+="<td align='center'>${FORM.deusuario.value}</td>"
+newCorreo.email+="<td align='center'>${FORM.nanexos.value}</td>"
+newCorreo.email+="</tr>"
+newCorreo.email+="<br>"
+String informacion = runCS("${APC.subScripts.siglatovalue}", "Parametros", "CINF", null, null, "SEDE" ).result
+newCorreo.info = informacion.replace("@linksede@","<a href='${runCS("${APC.subScripts.siglatovalue}", "Parametros", "URL", null, null, "SEDE").result}'>aquí</a>")
+String cuerpoCorreo =runCS("${APC.subScripts.siglatovalue}", "Parametros", "CREC", null, null, "SEDE" ).result
+String motivoRechazo =runCS("${APC.subScripts.siglatovalue}", "Parametros", "${FORM.motivorechazo.value}", null, null, "RCHZ" ).result
+newCorreo.cuerpo = cuerpoCorreo.replace("@motivo@","${motivoRechazo}").replace("@observaciones@","${FORM.observacionesrechazo.value}")
+templateEmail = docman.getNode(APC.constants.correoSedeRemitente)
+newCorreo.titulo = "Radicación Externa No. ${FORM.radicado.value}"
+newCorreo.asunto = "Su comunicación No. ${FORM.radicado.value} ha sido rechazada"
+
+/******************************************Main Code BEGIN******************************************/
+try{
+
+    //Enviar el correo de notificación
+    enviarCorreo(newCorreo, templateEmail)
+    
+}catch(e){
+    log.error("Error en el envio de la notificacion de rechazo", e)
+}
+/******************************************Main Code END******************************************/
+
+/*****************************************Functions BEGIN*****************************************/
+def enviarCorreo(cuerpoCorreo, templateEmail){
+
+    //Evaluar template
+    def emailContext = ['asunto':"<h1>${cuerpoCorreo.titulo}</h1>", 'body': cuerpoCorreo.email, 'cuerpo':cuerpoCorreo.cuerpo, 'informacion':cuerpoCorreo.info]
+    def mailbody = template.evaluateTemplate(templateEmail, emailContext)
+    correo = mail.create(mailbody)
+
+    //Remitentes de correo
+    correo.to("${FORM.decorreo.value}")
+
+    //Enviar Correo
+    correo.from("correspondenciatechedgecol@gmail.com")
+    correo.subject(cuerpoCorreo.asunto)
+    mail.send(correo, "correspondencia")
+}
+/*****************************************Functions END*****************************************/
+
+/***** CS para enviar notificación del rechazo al remitente de la radicación electrónica - LPA 13/04/2020 END *****/
+
+
+
+
