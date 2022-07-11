@@ -1,0 +1,43 @@
+/*
+████████╗███████╗ ██████╗██╗  ██╗███████╗██████╗  ██████╗ ███████╗    ████████╗███████╗ █████╗ ███╗   ███╗
+╚══██╔══╝██╔════╝██╔════╝██║  ██║██╔════╝██╔══██╗██╔════╝ ██╔════╝    ╚══██╔══╝██╔════╝██╔══██╗████╗ ████║
+   ██║   █████╗  ██║     ███████║█████╗  ██║  ██║██║  ███╗█████╗         ██║   █████╗  ███████║██╔████╔██║
+   ██║   ██╔══╝  ██║     ██╔══██║██╔══╝  ██║  ██║██║   ██║██╔══╝         ██║   ██╔══╝  ██╔══██║██║╚██╔╝██║
+   ██║   ███████╗╚██████╗██║  ██║███████╗██████╔╝╚██████╔╝███████╗       ██║   ███████╗██║  ██║██║ ╚═╝ ██║
+   ╚═╝   ╚══════╝ ╚═════╝╚═╝  ╚═╝╚══════╝╚═════╝  ╚═════╝ ╚══════╝       ╚═╝   ╚══════╝╚═╝  ╚═╝╚═╝     ╚═╝
+                                            ╦╔╗╔╔═╗╔═╗╦╦═╗╦╔╗╔╔═╗  ╔╦╗╦═╗╦ ╦╔═╗╔╦╗  ╔═╗╦  ╔═╗╔╗ ╔═╗╦  ╦ ╦ ╦
+                                            ║║║║╚═╗╠═╝║╠╦╝║║║║║ ╦   ║ ╠╦╝║ ║╚═╗ ║   ║ ╦║  ║ ║╠╩╗╠═╣║  ║ ╚╦╝
+                                            ╩╝╚╝╚═╝╩  ╩╩╚═╩╝╚╝╚═╝   ╩ ╩╚═╚═╝╚═╝ ╩   ╚═╝╩═╝╚═╝╚═╝╩ ╩╩═╝╩═╝╩ 
+*/
+/***** CS para evaluar la aprobación del memorando en el WF - LPA 10/02/2020 BEGIN *****/
+
+//Cargar datos del WF
+def wfstatus = workflow.getWorkflowStatus(workID, subWorkID)
+def form = forms.getWorkFlowFormDirect(wfstatus, "Form")
+def wfattachment = wfstatus.attachments
+def childs = wfattachment.getChildren()
+boolean status = false
+
+//Recorrer los attachment de WF y verificar si hay un documento de certificado de completado
+for(int i = 0; i<childs.size(); i++){
+    if(childs[i].subtype == 144){
+        if(childs[i].name == "Certificate of Completion.pdf"){
+            status = true
+            break
+        }
+    }
+}
+
+//Retornar el resultado
+if(status){
+    //Actualizar el estado del Form
+    form.estado.value = "Destinatario"
+    forms.updateWorkFlowFormDirect(wfstatus, "Form", form)
+    return "Success"
+}else{
+    //Actualizar el estado del Form
+    form.estado.value = "Edición"
+    forms.updateWorkFlowFormDirect(wfstatus, "Form", form)
+    return "Error"
+}
+/***** CS para evaluar la aprobación del documento en el WF - LPA 10/02/2020 END *****/
